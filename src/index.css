@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Primary Navy (#003A70) & RGB Channels */
+  --color-primary: #003A70;
+  --color-primary-rgb: 0 58 112;
+  --color-primary-dark: #00264A;
+  --color-primary-dark-rgb: 0 38 74;
+  --color-primary-light: #1B528A;
+  --color-primary-light-rgb: 27 82 138;
+  --color-primary-50: rgb(0 58 112 / 0.05);
+  --color-primary-100: rgb(0 58 112 / 0.1);
+  
+  /* Secondary Gold (#FFC84D) & RGB Channels */
+  --color-secondary: #FFC84D;
+  --color-secondary-rgb: 255 200 77;
+  --color-secondary-hover: #F2B938;
+  --color-secondary-hover-rgb: 242 185 56;
+  --color-secondary-dark: #D49B1E;
+  --color-secondary-dark-rgb: 212 155 30;
+  --color-secondary-50: rgb(255 200 77 / 0.08);
+
+  /* Accent aligned with Gold Highlight */
+  --color-accent: #FFC84D;
+  --color-accent-rgb: 255 200 77;
+  --color-accent-dark: #D49B1E;
+  --color-accent-dark-rgb: 212 155 30;
+
+  --font-heading: 'Be Vietnam Pro', sans-serif;
+  --font-body: 'Be Vietnam Pro', sans-serif;
+
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #F4F7FC;
+  --color-text-muted: #5D7186;
+
+  --radius-base: 16px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 32px;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-body);
+}
+
+/* Custom scrollbars for clean admin look - clearly visible and scrollable */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0b1120;
+}
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 9999px;
+  border: 1px solid #1e293b;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b82f6;
+}
+
+/* Glassmorphism helpers */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}

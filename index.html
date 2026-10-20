@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23003A70'><path d='M12 3L1 9l11 6 9-4.91V17h2V9L12 3zm0 14.54L4.2 13.2 12 8.95l7.8 4.25L12 17.54z'/></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EduLanding Studio - Thư Viện Section & Builder Landing Page</title>
+    <!-- Google Fonts for Vietnamese Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Dynamic Tailwind CSS JIT compiler for arbitrary runtime classes in custom code -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      try {
+        tailwind.config = {
+          theme: {
+            extend: {
+              colors: {
+                primary: {
+                  DEFAULT: 'var(--color-primary, #003A70)',
+                  dark: 'var(--color-primary-dark, #00264A)',
+                  light: 'var(--color-primary-light, #1B528A)',
+                  50: 'var(--color-primary-50, #EEF4FA)',
+                  100: 'var(--color-primary-100, #D7E5F3)',
+                },
+                secondary: {
+                  DEFAULT: 'var(--color-secondary, #FFC84D)',
+                  hover: 'var(--color-secondary-hover, #F2B938)',
+                  dark: 'var(--color-secondary-dark, #D49B1E)',
+                  50: 'var(--color-secondary-50, #FFF9EB)',
+                },
+                accent: {
+                  DEFAULT: 'var(--color-accent, #FFC84D)',
+                  hover: 'var(--color-secondary-hover, #F2B938)',
+                  dark: 'var(--color-accent-dark, #D49B1E)',
+                },
+                surface: 'var(--color-surface, #FFFFFF)',
+                'surface-muted': 'var(--color-surface-muted, #F4F7FC)',
+                'text-muted': 'var(--color-text-muted, #5D7186)',
+                highlight: 'var(--color-secondary, #FFC84D)',
+                navy: 'var(--color-primary, #003A70)',
+                gold: 'var(--color-secondary, #FFC84D)',
+              },
+              fontFamily: {
+                heading: ['var(--font-heading, "Be Vietnam Pro")', 'sans-serif'],
+                body: ['var(--font-body, "Be Vietnam Pro")', 'sans-serif'],
+              },
+              borderRadius: {
+                none: '0px',
+                sm: 'var(--radius-sm, 4px)',
+                DEFAULT: 'var(--radius-md, 8px)',
+                md: 'var(--radius-md, 8px)',
+                lg: 'var(--radius-lg, 12px)',
+                xl: 'var(--radius-xl, 16px)',
+                '2xl': 'var(--radius-2xl, 24px)',
+                '3xl': 'var(--radius-3xl, 32px)',
+                full: '9999px',
+              },
+            },
+          },
+        };
+      } catch (e) {}
+    </script>
+  </head>
+  <body class="bg-slate-900 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
