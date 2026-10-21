@@ -22,6 +22,8 @@ export default function AdminHeader({
   activeTheme,
   activeFont,
   activeRadius = 16,
+  siteConfig = {},
+  onOpenBrandSettings,
   onOpenThemeModal,
   onOpenExportModal,
   onOpenCodeModal,
@@ -39,20 +41,38 @@ export default function AdminHeader({
 
       {/* Brand & Title */}
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/30">
-          <Sparkles className="w-5 h-5 text-amber-300" />
-        </div>
+        {siteConfig?.logoUrl ? (
+          <img
+            src={siteConfig.logoUrl}
+            alt={siteConfig.brandName || "Logo"}
+            className="h-9 w-auto max-w-[120px] object-contain rounded-lg bg-slate-800/80 p-1 border border-slate-700"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        ) : (
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/30">
+            <Sparkles className="w-5 h-5 text-amber-300" />
+          </div>
+        )}
         <div>
           <div className="flex items-center gap-2">
             <h1 className="font-heading font-black text-base sm:text-lg tracking-tight text-white leading-none">
-              EduLanding <span className="text-blue-400">Studio</span>
+              {siteConfig?.brandName ? (
+                <>
+                  {siteConfig.brandName}{' '}
+                  <span className="text-amber-400 font-normal text-xs sm:text-sm">Builder</span>
+                </>
+              ) : (
+                <>
+                  EduLanding <span className="text-blue-400">Studio</span>
+                </>
+              )}
             </h1>
             <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-mono font-bold uppercase tracking-wider border border-blue-500/30">
               Admin Builder
             </span>
           </div>
           <p className="hidden md:block text-[11px] text-slate-400 mt-0.5">
-            Tổng hợp kho section Giáo dục • Click tạo y chang • Xuất mã React chuẩn
+            {siteConfig?.brandSlogan || 'Tổng hợp kho section Giáo dục • Click tạo y chang • Xuất mã React chuẩn'}
           </p>
         </div>
       </div>
@@ -98,57 +118,6 @@ export default function AdminHeader({
 
       {/* Theme & Export Action Buttons */}
       <div className="flex items-center gap-2 sm:gap-3">
-
-        {/* Convert HTML/CSS to React Tailwind Button */}
-        {onOpenConvertModal && (
-          <button
-            onClick={onOpenConvertModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 hover:text-white border border-amber-500/40 text-xs font-bold transition-all shadow-sm active:scale-95"
-            title="Chuyển đổi mã HTML/CSS/JS thuần sang React JSX + Tailwind CSS"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden md:inline">⚡ Chuyển HTML ➔ React</span>
-          </button>
-        )}
-
-        {/* Quick Add Custom Code Button */}
-        {onOpenCodeModal && (
-          <button
-            onClick={() => onOpenCodeModal(null)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/40 text-xs font-bold transition-all shadow-sm active:scale-95"
-            title="Thêm Section mới bằng mã nguồn JSX / HTML"
-          >
-            <Code className="w-3.5 h-3.5 text-cyan-300" />
-            <span className="hidden md:inline">+ Nhập Code</span>
-          </button>
-        )}
-
-        {/* Xuất & Nhập Toàn Bộ Section (JSON Tổng) */}
-        <div className="flex items-center gap-1.5 bg-slate-800/90 p-1 rounded-xl border border-slate-700/80 shadow-inner">
-          <button
-            onClick={onExportJson}
-            disabled={sectionsCount === 0}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-extrabold text-amber-300 hover:text-slate-950 hover:bg-amber-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm active:scale-95"
-            title="Xuất toàn bộ các section đang có trên màn hình thành 1 file JSON tổng duy nhất"
-          >
-            <FileJson className="w-3.5 h-3.5" />
-            <span>Xuất Tổng JSON ({sectionsCount})</span>
-          </button>
-
-          <label
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-extrabold text-emerald-400 hover:text-slate-950 hover:bg-emerald-400 transition-all cursor-pointer shadow-sm active:scale-95"
-            title="Nhập file JSON tổng để khôi phục toàn bộ các section sang máy khác"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Nhập JSON</span>
-            <input
-              type="file"
-              accept=".json"
-              onChange={onImportJson}
-              className="hidden"
-            />
-          </label>
-        </div>
 
         {/* Current Theme & Radius Pill Button */}
         <button

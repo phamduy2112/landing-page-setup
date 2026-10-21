@@ -16,9 +16,15 @@ import {
   Layers,
   GraduationCap,
   Globe,
+  Palette,
+  FileJson,
+  Image as ImageIcon,
+  Sliders,
+  Type,
 } from 'lucide-react';
 import { SECTION_CATEGORIES, SECTIONS_CATALOG } from '../../data/sectionsCatalog';
 import { SUBCOMPONENTS_CATALOG } from '../../data/subcomponentsCatalog';
+import { COLOR_PRESETS, FONT_PRESETS, RADIUS_PRESETS } from '../../data/themes';
 import ButtonCTA from '../common/ButtonCTA';
 
 // Only educational landing pages have these categories
@@ -37,8 +43,19 @@ export default function SectionSidebar({
   onDeleteCustomTemplate,
   customComponents = [],
   onDeleteCustomComponent,
+  activeTheme,
+  setActiveTheme,
+  activeFont,
+  setActiveFont,
+  activeRadius = 16,
+  setActiveRadius,
+  siteConfig = {},
+  onUpdateSiteConfig,
+  onExportJson,
+  onImportJson,
+  onOpenThemeModal,
 }) {
-  const [sidebarTab, setSidebarTab] = useState('sections'); // 'sections' | 'components'
+  const [sidebarTab, setSidebarTab] = useState('sections'); // 'sections' | 'brand-theme' | 'components'
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(null);
@@ -110,98 +127,89 @@ export default function StandaloneBlock_${timestamp}() {
       {/* Top Action & Search Bar */}
       <div className="p-4 border-b border-slate-800 space-y-3 bg-slate-900/90 backdrop-blur-md">
 
-        {/* Action Buttons: Add Code & Upload File */}
-        <div className="flex items-center gap-2">
-          {sidebarTab === 'sections' ? (
-            <button
-              onClick={() => onOpenCodeModal && onOpenCodeModal(null, 'section')}
-              className="flex-1 py-3 px-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 hover:from-blue-500 hover:to-indigo-500 text-white font-heading font-extrabold text-xs shadow-lg shadow-blue-500/25 transition-all duration-200 active:scale-98 flex items-center justify-center gap-1.5 border border-blue-400/30 group"
-            >
-              <Layers className="w-4 h-4 text-cyan-300 group-hover:rotate-12 transition-transform" />
-              <span>+ Nhập Section Mới</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => onOpenCodeModal && onOpenCodeModal(null, 'component')}
-              className="flex-1 py-3 px-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-500 hover:from-purple-500 hover:to-indigo-500 text-white font-heading font-extrabold text-xs shadow-lg shadow-purple-500/25 transition-all duration-200 active:scale-98 flex items-center justify-center gap-1.5 border border-purple-400/30 group"
-            >
-              <Sparkles className="w-4 h-4 text-amber-300 group-hover:rotate-12 transition-transform" />
-              <span>+ Nhập Component Mới</span>
-            </button>
-          )}
+        {/* JSON Tổng & Khôi Phục Nhanh */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-inner">
+          <button
+            onClick={onExportJson}
+            disabled={canvasSections.length === 0}
+            className="flex-1 py-2 px-2.5 rounded-xl text-xs font-black text-amber-300 hover:text-slate-950 hover:bg-amber-400 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm active:scale-95"
+            title="Xuất toàn bộ cấu hình trang thành file JSON tổng"
+          >
+            <FileJson className="w-3.5 h-3.5" />
+            <span>Xuất JSON ({canvasSections.length})</span>
+          </button>
 
           <label
-            className="py-3 px-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-heading font-bold text-xs border border-slate-700 transition-all active:scale-98 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shrink-0"
-            title="Tải trực tiếp file .jsx từ máy tính của bạn"
+            className="flex-1 py-2 px-2.5 rounded-xl text-xs font-black text-emerald-400 hover:text-slate-950 hover:bg-emerald-400 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+            title="Nhập file JSON tổng để khôi phục cấu hình trang"
           >
-            <Upload className="w-4 h-4 text-emerald-400" />
-            <span>Tải .jsx</span>
+            <Upload className="w-3.5 h-3.5" />
+            <span>Nhập JSON</span>
             <input
               type="file"
-              accept=".jsx,.js,.tsx,.html"
+              accept=".json"
+              onChange={onImportJson}
               className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                  const content = event.target?.result;
-                  if (typeof content === 'string') {
-                    const cleanName = file.name.replace(/\.[^/.]+$/, '');
-                    onOpenCodeModal &&
-                      onOpenCodeModal(
-                        { name: cleanName, customCode: content },
-                        sidebarTab === 'components' ? 'component' : 'section'
-                      );
-                  }
-                };
-                reader.readAsText(file);
-                e.target.value = '';
-              }}
             />
           </label>
         </div>
 
-        {/* Segmented Switcher: 1. Sections vs 2. Components */}
+        {/* Segmented Switcher: 1. Sections | 2. Brand & Theme | 3. Khối Con */}
         <div className="flex items-center p-1 bg-slate-950/80 rounded-xl border border-slate-800">
           <button
             onClick={() => setSidebarTab('sections')}
-            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${sidebarTab === 'sections'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'text-slate-400 hover:text-white'
-              }`}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+              sidebarTab === 'sections'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
           >
             <Box className="w-3.5 h-3.5" />
-            <span>1. Sections ({SECTIONS_CATALOG.length})</span>
+            <span>Sections</span>
+          </button>
+
+          <button
+            onClick={() => setSidebarTab('brand-theme')}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+              sidebarTab === 'brand-theme'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
+                : 'text-amber-400/90 hover:text-white'
+            }`}
+          >
+            <Palette className="w-3.5 h-3.5" />
+            <span>Màu & Brand</span>
           </button>
 
           <button
             onClick={() => setSidebarTab('components')}
-            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${sidebarTab === 'components'
-              ? 'bg-purple-600 text-white shadow-sm'
-              : 'text-slate-400 hover:text-white'
-              }`}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+              sidebarTab === 'components'
+                ? 'bg-purple-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>2. Khối Con & Button ({SUBCOMPONENTS_CATALOG.length + (customComponents?.length || 0)})</span>
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Khối Con</span>
           </button>
         </div>
 
-        {/* Search Input */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder={
-              sidebarTab === 'sections'
-                ? 'Tìm section (Khóa học, Lịch học, Form, FAQ...)...'
-                : 'Tìm component (Button CTA, Card đơn, Tiêu đề...)...'
-            }
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+        {/* Search Input (Hiển thị khi ở tab Sections hoặc Khối Con) */}
+        {sidebarTab !== 'brand-theme' && (
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder={
+                sidebarTab === 'sections'
+                  ? 'Tìm section (Khóa học, Lịch học, Form, FAQ...)...'
+                  : 'Tìm component (Button CTA, Card đơn, Tiêu đề...)...'
+              }
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        )}
 
         {/* Category Pills (Only for Sections) with Education distinction */}
         {sidebarTab === 'sections' && (
@@ -240,6 +248,227 @@ export default function StandaloneBlock_${timestamp}() {
           </div>
         )}
       </div>
+
+      {/* Main Content Area: Brand & Theme Tab */}
+      {sidebarTab === 'brand-theme' && (
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-5">
+          {/* 1. BRAND & META SETTINGS */}
+          <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 space-y-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5" />
+                <span>Thương Hiệu & Header</span>
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">Đồng bộ tức thì</span>
+            </div>
+
+            {/* Brand Name */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                Tên Thương Hiệu (Brand Name)
+              </label>
+              <input
+                type="text"
+                value={siteConfig?.brandName || ''}
+                onChange={(e) => onUpdateSiteConfig && onUpdateSiteConfig({ brandName: e.target.value })}
+                placeholder="VD: TÂN SANH NGỮ / ĐẠI TÂY NAM EDU"
+                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+              />
+            </div>
+
+            {/* Brand Slogan */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                Khẩu hiệu / Slogan
+              </label>
+              <input
+                type="text"
+                value={siteConfig?.brandSlogan || ''}
+                onChange={(e) => onUpdateSiteConfig && onUpdateSiteConfig({ brandSlogan: e.target.value })}
+                placeholder="VD: Học Viện Ngoại Ngữ Chuyên Sâu"
+                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+
+            {/* Logo URL */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center justify-between">
+                <span>Đường dẫn Logo (Image URL / Path)</span>
+                <ImageIcon className="w-3 h-3 text-slate-400" />
+              </label>
+              <input
+                type="text"
+                value={siteConfig?.logoUrl || ''}
+                onChange={(e) => onUpdateSiteConfig && onUpdateSiteConfig({ logoUrl: e.target.value })}
+                placeholder="VD: /assets/LOGO2.png hoặc link https://"
+                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+              />
+              {siteConfig?.logoUrl && (
+                <div className="mt-2 p-2 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400">Xem trước:</span>
+                  <img
+                    src={siteConfig.logoUrl}
+                    alt="Logo preview"
+                    className="max-h-6 max-w-[120px] object-contain"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Meta Title */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                Tiêu Đề Trang (Meta Title)
+              </label>
+              <input
+                type="text"
+                value={siteConfig?.metaTitle || ''}
+                onChange={(e) => onUpdateSiteConfig && onUpdateSiteConfig({ metaTitle: e.target.value })}
+                placeholder="VD: Tân Sanh Ngữ - Đào tạo Ngoại Ngữ Thực Chiến"
+                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+
+            {/* Meta Description */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                Mô tả SEO (Meta Description)
+              </label>
+              <textarea
+                rows={2}
+                value={siteConfig?.metaDescription || ''}
+                onChange={(e) => onUpdateSiteConfig && onUpdateSiteConfig({ metaDescription: e.target.value })}
+                placeholder="Mô tả tóm tắt nội dung khi chia sẻ link Zalo, Facebook..."
+                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+              />
+            </div>
+          </div>
+
+          {/* 2. COLOR PALETTE PRESETS & CUSTOM */}
+          <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 space-y-3.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                <Palette className="w-3.5 h-3.5" />
+                <span>Bảng Màu Tùy Biến</span>
+              </span>
+              <button
+                onClick={onOpenThemeModal}
+                className="text-[10px] text-blue-400 hover:text-white font-bold underline"
+              >
+                Mở rộng
+              </button>
+            </div>
+
+            {/* Presets List */}
+            <div className="grid grid-cols-2 gap-2">
+              {COLOR_PRESETS.slice(0, 6).map((preset) => {
+                const isSelected = activeTheme?.id === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => setActiveTheme && setActiveTheme(preset)}
+                    className={`p-2 rounded-xl text-left border transition-all flex flex-col justify-between gap-1.5 ${
+                      isSelected
+                        ? 'bg-blue-600/20 border-blue-500 ring-2 ring-blue-500/40 text-white'
+                        : 'bg-slate-900/60 border-slate-700/70 hover:bg-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className="w-4 h-4 rounded-full border border-white/20 shrink-0"
+                        style={{ backgroundColor: preset.primary }}
+                      />
+                      <span
+                        className="w-4 h-4 rounded-full border border-white/20 shrink-0"
+                        style={{ backgroundColor: preset.secondary }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-bold truncate">{preset.name.split('(')[0]}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Custom HEX Colors */}
+            <div className="pt-2 border-t border-slate-700/60 space-y-2">
+              <span className="block text-[11px] font-bold text-slate-300">Tự Chọn Mã Màu Riêng (HEX)</span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="block text-[10px] text-slate-400 mb-1">Màu Chính (Primary)</span>
+                  <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-700">
+                    <input
+                      type="color"
+                      value={activeTheme?.primary || '#003366'}
+                      onChange={(e) =>
+                        setActiveTheme &&
+                        setActiveTheme({ ...activeTheme, id: 'custom', primary: e.target.value })
+                      }
+                      className="w-6 h-6 rounded-lg border-0 bg-transparent cursor-pointer p-0 shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={activeTheme?.primary || '#003366'}
+                      onChange={(e) =>
+                        setActiveTheme &&
+                        setActiveTheme({ ...activeTheme, id: 'custom', primary: e.target.value })
+                      }
+                      className="w-full bg-transparent text-[11px] font-mono text-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <span className="block text-[10px] text-slate-400 mb-1">Màu Nút (Secondary)</span>
+                  <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-700">
+                    <input
+                      type="color"
+                      value={activeTheme?.secondary || '#F5A623'}
+                      onChange={(e) =>
+                        setActiveTheme &&
+                        setActiveTheme({ ...activeTheme, id: 'custom', secondary: e.target.value })
+                      }
+                      className="w-6 h-6 rounded-lg border-0 bg-transparent cursor-pointer p-0 shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={activeTheme?.secondary || '#F5A623'}
+                      onChange={(e) =>
+                        setActiveTheme &&
+                        setActiveTheme({ ...activeTheme, id: 'custom', secondary: e.target.value })
+                      }
+                      className="w-full bg-transparent text-[11px] font-mono text-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bo góc Radius */}
+            <div className="pt-2 border-t border-slate-700/60">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-300 mb-1.5">
+                <span>Độ Bo Góc Nút & Khối</span>
+                <span className="text-amber-300 font-mono">{activeRadius}px</span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[8, 12, 16, 24].map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setActiveRadius && setActiveRadius(r)}
+                    className={`py-1.5 px-2 rounded-xl text-xs font-bold transition ${
+                      activeRadius === r
+                        ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
+                        : 'bg-slate-900 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                    }`}
+                  >
+                    {r}px
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area: Components Tab */}
       {sidebarTab === 'components' && (

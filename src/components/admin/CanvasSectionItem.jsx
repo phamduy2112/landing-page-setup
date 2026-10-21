@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   ChevronUp,
   ChevronDown,
@@ -18,6 +18,7 @@ import {
 import CustomCodeRenderer from './CustomCodeRenderer';
 import ResponsiveIframe from './ResponsiveIframe';
 import InlineSectionLiveEditor from './InlineSectionLiveEditor';
+import ClickToEditOverlay from './ClickToEditOverlay';
 import { getSectionSourceCode } from '../../data/sectionsRawCode';
 import { generateBlockCssRules } from '../../utils/sectionBlockManager';
 import { switchSectionColorTheme, detectSectionTheme } from '../../utils/sectionColorTransform';
@@ -370,45 +371,29 @@ export default function CanvasSectionItem({
   activeTheme,
   activeFont,
   activeRadius = 16,
+  siteConfig = {},
 }) {
   const { sectionDef, customData, isCustom, customCode } = item;
   const isCustomSection = isCustom || sectionDef?.isCustom;
   const Component = sectionDef?.component;
   const [copied, setCopied] = useState(false);
 
+  // Merge siteConfig (brandName, brandSlogan, logoUrl) into section data
+  const mergedData = {
+    ...(sectionDef?.defaultData || {}),
+    ...(customData || {}),
+    ...(siteConfig?.brandName ? { brandName: siteConfig.brandName } : {}),
+    ...(siteConfig?.brandSlogan ? { brandSlogan: siteConfig.brandSlogan } : {}),
+    ...(siteConfig?.logoUrl ? { logoUrl: siteConfig.logoUrl, logo: siteConfig.logoUrl } : {}),
+  };
+
   const [inlineEditorMode, setInlineEditorMode] = useState(null); // null | 'wireframe' | 'code' | 'export'
   const isInlineEditorOpen = Boolean(inlineEditorMode);
-
-  // Nhận diện tông màu hiện tại của section (Primary hay Secondary)
-  const currentColorTheme =
-    item.colorTheme ||
-    item.styleSettings?.colorTheme ||
-    detectSectionTheme(item.customCode || getSectionSourceCode(item));
-
-  // Chuyển đổi màu sắc trực tiếp trên Section không cần vào code
-  const handleSwitchColorTheme = (targetTheme) => {
-    if (onSwitchSectionColor) {
-      onSwitchSectionColor(item.instanceId, targetTheme);
-    } else {
-      const code = item.customCode || getSectionSourceCode(item);
-      const newCode = switchSectionColorTheme(code, targetTheme);
-      onUpdateSectionLiveCode && onUpdateSectionLiveCode(item.instanceId, newCode);
-      onUpdateSectionStyles &&
-        onUpdateSectionStyles({
-          instanceId: item.instanceId,
-          styleSettings: {
-            ...(item.styleSettings || {}),
-            colorTheme: targetTheme,
-          },
-        });
-    }
-  };
+  const contentRenderRef = useRef(null);
 
   const handleCopy = (e) => {
     e.stopPropagation();
-    const codeToCopy =
-      customCode ||
-      getSectionSourceCode(item);
+    const codeToCopy = customCode || getSectionSourceCode(item);
     navigator.clipboard.writeText(codeToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -490,111 +475,7 @@ export default function CanvasSectionItem({
           {/* Right: Actions */}
           <div className="flex items-center gap-1 shrink-0 flex-wrap sm:flex-nowrap justify-end">
 
-            {/* 1. Sửa & Xóa Trực Tiếp (WordPress Gutenberg Wireframe Mode) */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setInlineEditorMode((prev) => (prev === 'wireframe' ? null : 'wireframe'));
-                onSelect && onSelect(item.instanceId);
-              }}
-              className={`rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 ${
-                isMobile ? 'p-1.5' : 'px-2.5 py-1.5'
-              } ${
-                inlineEditorMode === 'wireframe'
-                  ? 'bg-amber-500 text-slate-950 font-black border-amber-400 shadow-amber-500/30'
-                  : 'bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border-amber-500/40'
-              }`}
-              title="Chỉnh sửa text và xóa phần tử trực tiếp trên màn hình (WordPress Gutenberg style)"
-            >
-              <FileText className="w-3.5 h-3.5 shrink-0" />
-              {!isMobile && !isTablet && <span>Sửa & Xóa Text (WordPress)</span>}
-              {isTablet && <span>Sửa Text</span>}
-            </button>
-
-            {/* 1.0 Chuyển Đổi Màu Primary / Secondary Trực Tiếp Ở Section */}
-            <div
-              className="flex items-center rounded-lg border border-slate-700 bg-slate-900/90 p-0.5 shrink-0 shadow-sm gap-0.5"
-              title="Chuyển đổi màu sắc của Section giữa Primary (Đỏ/Hàn Quốc) và Secondary (Xanh/Đài Loan) trực tiếp không cần sửa code"
-            >
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSwitchColorTheme('primary');
-                }}
-                className={`rounded px-2 py-1 text-xs font-bold transition-all flex items-center gap-1 active:scale-95 ${
-                  currentColorTheme === 'primary'
-                    ? 'bg-red-600 text-white font-extrabold shadow-sm shadow-red-500/40 ring-1 ring-red-400'
-                    : 'text-slate-400 hover:text-red-300 hover:bg-slate-800'
-                }`}
-                title="Áp dụng màu Primary (Đỏ / Hàn Quốc / Chính) cho section này trực tiếp"
-              >
-                <span className={`w-2 h-2 rounded-full ${currentColorTheme === 'primary' ? 'bg-white' : 'bg-red-500'}`} />
-                {!isMobile && <span>Primary</span>}
-                {isMobile && <span>🔴</span>}
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSwitchColorTheme('secondary');
-                }}
-                className={`rounded px-2 py-1 text-xs font-bold transition-all flex items-center gap-1 active:scale-95 ${
-                  currentColorTheme === 'secondary'
-                    ? 'bg-emerald-600 text-white font-extrabold shadow-sm shadow-emerald-500/40 ring-1 ring-emerald-400'
-                    : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800'
-                }`}
-                title="Áp dụng màu Secondary (Xanh Lá / Đài Loan / Visa) cho section này trực tiếp"
-              >
-                <span className={`w-2 h-2 rounded-full ${currentColorTheme === 'secondary' ? 'bg-white' : 'bg-emerald-400'}`} />
-                {!isMobile && <span>Secondary</span>}
-                {isMobile && <span>🟢</span>}
-              </button>
-            </div>
-
-            {/* 1.1 Chỉnh Sửa Hình Ảnh Trực Tiếp */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setInlineEditorMode((prev) => (prev === 'images' ? null : 'images'));
-                onSelect && onSelect(item.instanceId);
-              }}
-              className={`rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 ${
-                isMobile ? 'p-1.5' : 'px-2.5 py-1.5'
-              } ${
-                inlineEditorMode === 'images'
-                  ? 'bg-emerald-600 text-white font-extrabold border-emerald-400 shadow-emerald-500/30'
-                  : 'bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border-emerald-500/40'
-              }`}
-              title="Xem và thay đổi toàn bộ hình ảnh trong section này trực tiếp"
-            >
-              <ImageIcon className="w-3.5 h-3.5 shrink-0 text-emerald-300" />
-              {!isMobile && !isTablet && <span>🖼️ Thay Ảnh Trực Tiếp</span>}
-              {isTablet && <span>Ảnh</span>}
-            </button>
-
-            {/* 1.2 Tự Động Đổi Thẻ <div> ➔ <a> Khi Nhập Href */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setInlineEditorMode((prev) => (prev === 'links' ? null : 'links'));
-                onSelect && onSelect(item.instanceId);
-              }}
-              className={`rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 ${
-                isMobile ? 'p-1.5' : 'px-2.5 py-1.5'
-              } ${
-                inlineEditorMode === 'links'
-                  ? 'bg-cyan-600 text-white font-extrabold border-cyan-400 shadow-cyan-500/30'
-                  : 'bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white border-cyan-500/40'
-              }`}
-              title="Gắn link Href và tự động chuyển đổi thẻ <div> thành <a> không cần vào code"
-            >
-              <LinkIcon className="w-3.5 h-3.5 shrink-0 text-cyan-300" />
-              {!isMobile && !isTablet && <span>🔗 Đổi &lt;div&gt; ➔ &lt;a&gt;</span>}
-              {isTablet && <span>Link</span>}
-            </button>
-
-            {/* 2. Chỉnh Sửa Code Trực Tiếp (Live JSX Editor) */}
+            {/* 1. Chỉnh Sửa Code Trực Tiếp (Live JSX Editor) */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -608,61 +489,22 @@ export default function CanvasSectionItem({
                   ? 'bg-cyan-600 text-white font-extrabold border-cyan-400 shadow-cyan-500/30'
                   : 'bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-white border-cyan-500/40'
               }`}
-              title="Chỉnh sửa code JSX trực tiếp trên màn hình với Live Preview tức thì"
+              title="Chỉnh sửa code JSX trực tiếp trên màn hình với Live Preview"
             >
               <Code className="w-3.5 h-3.5 shrink-0" />
-              {!isMobile && !isTablet && <span>Code Trực Tiếp</span>}
-              {isTablet && <span>Code</span>}
+              {!isMobile && <span>Code</span>}
             </button>
 
-            {/* 3. Xuất File Code .jsx 1-Click */}
+            {/* 2. Xuất File Code .jsx 1-Click */}
             <button
               onClick={handleDownloadSectionCode}
               className={`rounded-lg border text-xs font-bold transition-all flex items-center gap-1 shrink-0 ${
-                isMobile ? 'p-1.5' : 'px-2 py-1.5'
+                isMobile ? 'p-1.5' : 'px-2.5 py-1.5'
               } bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border-emerald-500/40 active:scale-95 shadow-sm`}
               title="Tải ngay file mã nguồn .jsx của section này về máy"
             >
               <Download className="w-3.5 h-3.5 shrink-0" />
-              {!isMobile && !isTablet && <span>Xuất .jsx</span>}
-            </button>
-
-            {/* 4. Tùy Chỉnh Căn Lề, Cỡ Chữ & Nút (Inspector Button) */}
-            {onCustomizeButton && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCustomizeButton(item);
-                }}
-                className={`rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 ${
-                  isMobile ? 'p-1.5' : 'px-2.5 py-1.5'
-                } ${
-                  isSelected
-                    ? 'bg-blue-600 text-white border-blue-400 font-extrabold shadow-blue-500/30'
-                    : 'bg-blue-600/30 hover:bg-blue-600 text-blue-300 hover:text-white border-blue-500/40'
-                }`}
-                title="Tùy chỉnh căn lề (text center), cỡ chữ & nút CTA cho section này"
-              >
-                <Sliders className="w-3.5 h-3.5 shrink-0" />
-                {!isMobile && !isTablet && <span>Tùy Chỉnh (Chữ & Nút)</span>}
-                {isTablet && <span>Tùy Chỉnh</span>}
-              </button>
-            )}
-
-            {/* Quick Add Component into THIS Section */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setInlineEditorMode('wireframe');
-              }}
-              className={`rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 ${
-                isMobile ? 'p-1.5' : 'px-2.5 py-1.5'
-              } bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white border-emerald-500/40`}
-              title="Thêm khối con (nút bấm, tiêu đề, badge,...) vào section này"
-            >
-              <PlusCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              {!isMobile && !isTablet && <span>+ Thêm Khối Vào Section</span>}
-              {isTablet && <span>+ Khối</span>}
+              {!isMobile && <span>Xuất .jsx</span>}
             </button>
 
             {/* Quick Copy Code Button */}
@@ -786,6 +628,42 @@ export default function CanvasSectionItem({
             activeRadius={activeRadius}
             minHeight={0}
           >
+            <div ref={contentRenderRef} className="relative w-full">
+              <ClickToEditOverlay
+                containerRef={contentRenderRef}
+                sectionCode={customCode || getSectionSourceCode(item)}
+                sectionInstanceId={item.instanceId}
+                onUpdateSectionCode={onUpdateSectionLiveCode}
+                isActive={true}
+              />
+              <SectionStyledWrapper
+                instanceId={item.instanceId}
+                styleSettings={item.styleSettings}
+                layoutSettings={item.layoutSettings}
+                isCustomSection={isCustomSection}
+              >
+                {isCustomSection ? (
+                  <CustomCodeRenderer
+                    code={customCode || sectionDef?.customCode}
+                    activeTheme={activeTheme}
+                    activeFont={activeFont}
+                    activeRadius={activeRadius}
+                  />
+                ) : Component ? (
+                  <Component data={mergedData} />
+                ) : null}
+              </SectionStyledWrapper>
+            </div>
+          </ResponsiveIframe>
+        ) : (
+          <div ref={contentRenderRef} className="relative w-full">
+            <ClickToEditOverlay
+              containerRef={contentRenderRef}
+              sectionCode={customCode || getSectionSourceCode(item)}
+              sectionInstanceId={item.instanceId}
+              onUpdateSectionCode={onUpdateSectionLiveCode}
+              isActive={true}
+            />
             <SectionStyledWrapper
               instanceId={item.instanceId}
               styleSettings={item.styleSettings}
@@ -800,30 +678,12 @@ export default function CanvasSectionItem({
                   activeRadius={activeRadius}
                 />
               ) : Component ? (
-                <Component data={customData || sectionDef.defaultData} />
-              ) : null}
+                <Component data={mergedData} />
+              ) : (
+                <div className="p-8 text-center text-slate-400">Không tìm thấy component hiển thị.</div>
+              )}
             </SectionStyledWrapper>
-          </ResponsiveIframe>
-        ) : (
-          <SectionStyledWrapper
-            instanceId={item.instanceId}
-            styleSettings={item.styleSettings}
-            layoutSettings={item.layoutSettings}
-            isCustomSection={isCustomSection}
-          >
-            {isCustomSection ? (
-              <CustomCodeRenderer
-                code={customCode || sectionDef?.customCode}
-                activeTheme={activeTheme}
-                activeFont={activeFont}
-                activeRadius={activeRadius}
-              />
-            ) : Component ? (
-              <Component data={customData || sectionDef.defaultData} />
-            ) : (
-              <div className="p-8 text-center text-slate-400">Không tìm thấy component hiển thị.</div>
-            )}
-          </SectionStyledWrapper>
+          </div>
         )}
       </div>
 

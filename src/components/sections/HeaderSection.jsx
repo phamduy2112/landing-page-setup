@@ -23,9 +23,13 @@ export default function HeaderSection({ data = {} }) {
           
           {/* Logo & Brand Identity */}
           <a href="#" className="flex items-center gap-3 group">
-            <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white shadow-md shadow-primary/20 group-hover:scale-105 transition-transform">
-              <GraduationCap className="w-7 h-7" />
-            </div>
+            {data.logoUrl ? (
+              <img src={data.logoUrl} className="h-12 w-auto max-w-[160px] object-contain group-hover:scale-105 transition-transform" alt={brandName} />
+            ) : (
+              <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white shadow-md shadow-primary/20 group-hover:scale-105 transition-transform">
+                <GraduationCap className="w-7 h-7" />
+              </div>
+            )}
             <div>
               <span className="block font-heading font-extrabold text-xl sm:text-2xl tracking-tight text-primary leading-tight">
                 {brandName}

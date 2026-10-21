@@ -27,6 +27,9 @@ import {
   ArrowDown,
   PlusCircle,
   Plus,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  Upload,
 } from 'lucide-react';
 import ButtonCTA from '../common/ButtonCTA';
 import {
@@ -37,6 +40,12 @@ import {
 } from '../../utils/sectionBlockManager';
 import { detectSectionTheme } from '../../utils/sectionColorTransform';
 import { getSectionSourceCode } from '../../data/sectionsRawCode';
+import {
+  extractSectionImages,
+  replaceImageInCode,
+  scanLinkableContainers,
+  convertDivToAnchorWithHref,
+} from '../../utils/sectionElementTransform';
 
 export default function SectionInspectorPanel({
   isOpen = true,
@@ -51,6 +60,7 @@ export default function SectionInspectorPanel({
   onSaveButtonComponent,
   onEditSectionContent,
   onEditSectionCode,
+  onUpdateSectionCode,
   onMoveUp,
   onMoveDown,
   onDeleteSection,
@@ -274,6 +284,44 @@ export default function CustomButtonCTA() {
     setTimeout(() => setSaveSuccessMsg(''), 3000);
   };
 
+  // 4. Handle Live Image Replacement in Section
+  const handleUpdateImage = (oldSrc, newSrc) => {
+    if (!newSrc || newSrc.trim() === '' || oldSrc === newSrc) return;
+    const rawCode = currentSection.customCode || getSectionSourceCode(currentSection);
+    if (!rawCode || !onUpdateSectionCode) return;
+    const updated = replaceImageInCode(rawCode, oldSrc, newSrc.trim());
+    if (updated !== rawCode) {
+      onUpdateSectionCode(currentSection.instanceId, updated);
+      showNotification('Đã thay đổi ảnh trực tiếp trong Section!');
+    }
+  };
+
+  // 5. Handle Live Tag Conversion: div <-> a & href
+  const handleConvertContainerTag = (rawOpening, newTag, currentHref) => {
+    const rawCode = currentSection.customCode || getSectionSourceCode(currentSection);
+    if (!rawCode || !onUpdateSectionCode) return;
+    const targetHref = newTag === 'a' ? (currentHref || '#tu-van') : '';
+    const updated = convertDivToAnchorWithHref(rawCode, rawOpening, targetHref);
+    if (updated !== rawCode) {
+      onUpdateSectionCode(currentSection.instanceId, updated);
+      showNotification(
+        newTag === 'a'
+          ? 'Đã chuyển thành thẻ <a> có liên kết href!'
+          : 'Đã chuyển về thẻ <div> thường!'
+      );
+    }
+  };
+
+  const handleUpdateHref = (rawOpening, newHref) => {
+    const rawCode = currentSection.customCode || getSectionSourceCode(currentSection);
+    if (!rawCode || !onUpdateSectionCode) return;
+    const updated = convertDivToAnchorWithHref(rawCode, rawOpening, newHref);
+    if (updated !== rawCode) {
+      onUpdateSectionCode(currentSection.instanceId, updated);
+      showNotification('Đã cập nhật đường dẫn href!');
+    }
+  };
+
   // Handle Layout Changes (Column Flip, Reordering, Extra Blocks, Deleting)
   const handleApplyLayout = (nextFlip, nextOrder, nextDeleted, nextExtra) => {
     const nextSettings = {
@@ -412,12 +460,9 @@ export default function CustomButtonCTA() {
           <div>
             <h3 className="font-heading font-black text-xs sm:text-sm text-white flex items-center gap-1.5 leading-none">
               <span>Tùy Chỉnh Section</span>
-              <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-mono text-[9px] font-bold">
-                WordPress
-              </span>
             </h3>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              Căn giữa, cỡ chữ & nút bấm trực tiếp
+              Thay ảnh, đổi thẻ, căn lề & nút bấm
             </p>
           </div>
         </div>
@@ -488,7 +533,204 @@ export default function CustomButtonCTA() {
           </div>
         </div>
 
-        {/* 1.5. Bố Cục Cột & Sắp Xếp Vị Trí Khối Con (WordPress Style) */}
+        {/* 1.5. Thay Ảnh Trực Tiếp */}
+        {(() => {
+          const currentCode = currentSection.customCode || getSectionSourceCode(currentSection);
+          const images = extractSectionImages(currentCode, currentSection.customData, extraBlocks);
+          return (
+            <div className="space-y-3 p-4 rounded-3xl bg-slate-800/40 border border-slate-700/80 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-pink-600/30 text-pink-400 border border-pink-500/40 flex items-center justify-center font-bold text-xs">
+                    <ImageIcon className="w-3.5 h-3.5" />
+                  </span>
+                  <div>
+                    <h4 className="font-heading font-black text-xs sm:text-sm text-white">
+                      Hình Ảnh Section
+                    </h4>
+                    <p className="text-[10px] text-slate-400">
+                      Thay link ảnh hoặc tải ảnh từ máy tính
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-pink-300 font-mono text-[10px] font-bold">
+                  {images.length} ảnh
+                </span>
+              </div>
+
+              {images.length === 0 ? (
+                <p className="text-[11px] text-slate-500 italic p-2 bg-slate-950/40 rounded-xl text-center">
+                  Section này không có thẻ hình ảnh &lt;img&gt; nào.
+                </p>
+              ) : (
+                <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1 scrollbar-thin">
+                  {images.map((img, idx) => (
+                    <div
+                      key={`${img.src}-${idx}`}
+                      className="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 space-y-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold text-amber-400 font-mono">
+                          #{idx + 1} {img.alt ? `(${img.alt.slice(0, 25)})` : ''}
+                        </span>
+                        <label className="cursor-pointer px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-bold flex items-center gap-1 transition">
+                          <Upload className="w-3 h-3 text-pink-400" />
+                          <span>Tải ảnh lên</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = (evt) => {
+                                const base64 = evt.target?.result;
+                                if (base64) handleUpdateImage(img.src, base64);
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
+                          <img
+                            src={img.src}
+                            alt="preview"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          defaultValue={img.src}
+                          placeholder="Dán link ảnh https://..."
+                          onBlur={(e) => {
+                            if (e.target.value !== img.src) {
+                              handleUpdateImage(img.src, e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.target.blur();
+                            }
+                          }}
+                          className="flex-1 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-pink-500 font-mono truncate"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* 1.6. Chuyển Đổi Thẻ & Đường Dẫn (Tag: div / a + href) */}
+        {(() => {
+          const currentCode = currentSection.customCode || getSectionSourceCode(currentSection);
+          const containers = scanLinkableContainers(currentCode);
+          return (
+            <div className="space-y-3 p-4 rounded-3xl bg-slate-800/40 border border-slate-700/80 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-lg bg-indigo-600/30 text-indigo-400 border border-indigo-500/40 flex items-center justify-center font-bold text-xs">
+                    <LinkIcon className="w-3.5 h-3.5" />
+                  </span>
+                  <div>
+                    <h4 className="font-heading font-black text-xs sm:text-sm text-white">
+                      Thẻ Khung & Đường Dẫn
+                    </h4>
+                    <p className="text-[10px] text-slate-400">
+                      Chọn thẻ div hoặc a kèm đường dẫn href
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-indigo-300 font-mono text-[10px] font-bold">
+                  {containers.length} khối
+                </span>
+              </div>
+
+              {containers.length === 0 ? (
+                <p className="text-[11px] text-slate-500 italic p-2 bg-slate-950/40 rounded-xl text-center">
+                  Không tìm thấy khối thẻ nào phù hợp để gắn liên kết.
+                </p>
+              ) : (
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
+                  {containers.map((c, idx) => {
+                    const isAnchor = c.tag === 'a';
+                    return (
+                      <div
+                        key={`${c.rawOpening.slice(0, 30)}-${idx}`}
+                        className={`p-3 rounded-2xl border transition space-y-2 text-xs ${
+                          isAnchor
+                            ? 'bg-blue-950/30 border-blue-600/60'
+                            : 'bg-slate-950/70 border-slate-800'
+                        }`}
+                      >
+                        {/* Selector: div or a */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-slate-300 font-mono truncate max-w-[140px]">
+                            #{idx + 1} {c.label || 'Khối nội dung'}
+                          </span>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Thẻ:</span>
+                            <select
+                              value={c.tag}
+                              onChange={(e) => {
+                                handleConvertContainerTag(c.rawOpening, e.target.value, c.href);
+                              }}
+                              className={`px-2 py-1 rounded-lg border text-[11px] font-bold focus:outline-none ${
+                                isAnchor
+                                  ? 'bg-blue-600 text-white border-blue-400'
+                                  : 'bg-slate-900 text-slate-300 border-slate-700'
+                              }`}
+                            >
+                              <option value="div">&lt;div&gt; (Không click)</option>
+                              <option value="a">&lt;a&gt; (Có link href)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* If tag is a, show href input */}
+                        {isAnchor && (
+                          <div className="space-y-1 pt-1 border-t border-slate-800/80">
+                            <label className="block text-[10px] font-bold text-blue-300">
+                              Đường dẫn href:
+                            </label>
+                            <input
+                              type="text"
+                              defaultValue={c.href || '#tu-van'}
+                              placeholder="VD: #tu-van hoặc https://..."
+                              onBlur={(e) => {
+                                if (e.target.value !== c.href) {
+                                  handleUpdateHref(c.rawOpening, e.target.value);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.target.blur();
+                                }
+                              }}
+                              className="w-full px-2.5 py-1.5 rounded-xl bg-slate-900 border border-blue-500/50 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-blue-400 font-mono"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* 1.7. Bố Cục Cột & Khối Con */}
         <div className="space-y-3 p-4 rounded-3xl bg-slate-800/40 border border-slate-700/80 shadow-md">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -498,9 +740,6 @@ export default function CustomButtonCTA() {
               <div>
                 <h4 className="font-heading font-black text-xs sm:text-sm text-white flex items-center gap-1.5">
                   <span>Bố Cục Cột & Khối Con</span>
-                  <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono text-[9px] font-bold">
-                    Gutenberg
-                  </span>
                 </h4>
                 <p className="text-[10px] text-slate-400">
                   Đổi chỗ hình trái/phải & di chuyển khối con
@@ -650,77 +889,6 @@ export default function CustomButtonCTA() {
                 ))}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* 1.5 Tông Màu Chủ Đạo Của Section (Primary / Secondary) */}
-        <div className="space-y-3 p-4 rounded-3xl bg-slate-800/40 border border-slate-700/80 shadow-md">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-red-600/30 text-red-400 border border-red-500/40 flex items-center justify-center font-bold text-xs">
-                🎨
-              </span>
-              <div>
-                <h4 className="font-heading font-black text-xs sm:text-sm text-white flex items-center gap-1.5">
-                  <span>Tông Màu Section</span>
-                  <span className="px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-mono text-[9px] font-bold">
-                    Trực Tiếp
-                  </span>
-                </h4>
-                <p className="text-[10px] text-slate-400">
-                  Đổi màu Primary hoặc Secondary không cần sửa code
-                </p>
-              </div>
-            </div>
-            <span
-              className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
-                (currentSection?.colorTheme || currentSection?.styleSettings?.colorTheme || (currentSection ? detectSectionTheme(currentSection.customCode || getSectionSourceCode(currentSection)) : 'primary')) === 'primary'
-                  ? 'bg-red-500/20 text-red-300 border-red-500/40'
-                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-              }`}
-            >
-              {(currentSection?.colorTheme || currentSection?.styleSettings?.colorTheme || (currentSection ? detectSectionTheme(currentSection.customCode || getSectionSourceCode(currentSection)) : 'primary')) === 'primary' ? '🔴 Primary' : '🟢 Secondary'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => {
-                if (onSwitchSectionColor && currentSection) {
-                  onSwitchSectionColor(currentSection.instanceId, 'primary');
-                  showNotification('Đã chuyển section sang tông màu Primary (Đỏ)!');
-                }
-              }}
-              className={`p-2.5 rounded-xl font-bold border transition flex items-center justify-center gap-2 ${
-                (currentSection?.colorTheme || currentSection?.styleSettings?.colorTheme || (currentSection ? detectSectionTheme(currentSection.customCode || getSectionSourceCode(currentSection)) : 'primary')) === 'primary'
-                  ? 'bg-red-600 text-white border-red-400 shadow-md shadow-red-600/30 ring-2 ring-red-400/40 font-extrabold'
-                  : 'bg-slate-900 text-slate-300 border-slate-700 hover:text-white hover:border-red-500/40'
-              }`}
-              title="Chuyển toàn bộ màu trong section sang Primary (Đỏ/Hàn Quốc)"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-red-400"></span>
-              <span>🔴 Primary (Đỏ)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (onSwitchSectionColor && currentSection) {
-                  onSwitchSectionColor(currentSection.instanceId, 'secondary');
-                  showNotification('Đã chuyển section sang tông màu Secondary (Xanh)!');
-                }
-              }}
-              className={`p-2.5 rounded-xl font-bold border transition flex items-center justify-center gap-2 ${
-                (currentSection?.colorTheme || currentSection?.styleSettings?.colorTheme || (currentSection ? detectSectionTheme(currentSection.customCode || getSectionSourceCode(currentSection)) : 'primary')) === 'secondary'
-                  ? 'bg-emerald-600 text-white border-emerald-400 shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400/40 font-extrabold'
-                  : 'bg-slate-900 text-slate-300 border-slate-700 hover:text-white hover:border-emerald-500/40'
-              }`}
-              title="Chuyển toàn bộ màu trong section sang Secondary (Xanh/Đài Loan)"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-              <span>🟢 Secondary (Xanh)</span>
-            </button>
           </div>
         </div>
 

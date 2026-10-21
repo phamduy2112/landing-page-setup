@@ -25,6 +25,7 @@ const STORAGE_KEYS = {
   FONT_ID: 'edulanding_active_font_id',
   RADIUS: 'edulanding_active_radius',
   AUTH: 'edulanding_auth_session',
+  SITE_CONFIG: 'edulanding_site_config_v2',
 };
 
 export default function App() {
@@ -37,6 +38,24 @@ export default function App() {
       return false;
     }
   });
+
+  // Site Brand & Meta Config
+  const [siteConfig, setSiteConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.SITE_CONFIG);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      // ignore
+    }
+    return {
+      brandName: 'TÂN SANH NGỮ',
+      brandSlogan: 'Học Viện Ngoại Ngữ Chuyên Sâu',
+      logoUrl: '/assets/LOGO2.png',
+      metaTitle: 'Tân Sanh Ngữ - Đào tạo Ngoại Ngữ Chuyên Sâu',
+      metaDescription: 'Học tiếng Anh, tiếng Trung giao tiếp & luyện thi chứng chỉ thực chiến cùng giảng viên chuyên môn cao.',
+    };
+  });
+
   // Theme, Font & Radius States
   const [activeTheme, setActiveTheme] = useState(() => {
     const savedId = localStorage.getItem(STORAGE_KEYS.THEME_ID);
@@ -206,6 +225,18 @@ export default function App() {
       // ignore
     }
   }, [customComponents]);
+
+  // Save siteConfig to localStorage & update document.title
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SITE_CONFIG, JSON.stringify(siteConfig));
+      if (siteConfig?.metaTitle) {
+        document.title = siteConfig.metaTitle;
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [siteConfig]);
 
   // Auto-select first section or maintain valid selection
   useEffect(() => {
@@ -786,7 +817,8 @@ export default function MultiComponentSection() {
       const exportData = {
         version: '2.0',
         exportedAt: new Date().toISOString(),
-        author: 'EduLanding Studio',
+        author: siteConfig?.brandName || 'EduLanding Studio',
+        siteConfig,
         theme: activeTheme,
         font: activeFont,
         radius: activeRadius,
@@ -833,7 +865,8 @@ export default function MultiComponentSection() {
           };
         });
 
-        // Áp dụng Theme, Font, Radius nếu có trong file
+        // Áp dụng Site Brand & Meta, Theme, Font, Radius nếu có trong file
+        if (parsed.siteConfig) setSiteConfig(parsed.siteConfig);
         if (parsed.theme) setActiveTheme(parsed.theme);
         if (parsed.font) setActiveFont(parsed.font);
         if (parsed.radius !== undefined) setActiveRadius(parsed.radius);
@@ -868,13 +901,12 @@ export default function MultiComponentSection() {
         activeTheme={activeTheme}
         activeFont={activeFont}
         activeRadius={activeRadius}
+        siteConfig={siteConfig}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
         onOpenExportModal={() => {
           setSingleSectionCode(null);
           setIsExportModalOpen(true);
         }}
-        onOpenCodeModal={handleOpenCodeModal}
-        onOpenConvertModal={() => setIsHtmlConvertModalOpen(true)}
         onResetCanvas={handleResetCanvas}
         sectionsCount={canvasSections.length}
         isRightPanelOpen={isRightPanelOpen}
@@ -906,6 +938,17 @@ export default function MultiComponentSection() {
           onDeleteCustomTemplate={handleDeleteCustomTemplate}
           customComponents={customComponents}
           onDeleteCustomComponent={handleDeleteCustomComponent}
+          activeTheme={activeTheme}
+          setActiveTheme={setActiveTheme}
+          activeFont={activeFont}
+          setActiveFont={setActiveFont}
+          activeRadius={activeRadius}
+          setActiveRadius={setActiveRadius}
+          siteConfig={siteConfig}
+          onUpdateSiteConfig={(patch) => setSiteConfig((prev) => ({ ...prev, ...patch }))}
+          onExportJson={handleExportJson}
+          onImportJson={handleImportJson}
+          onOpenThemeModal={() => setIsThemeModalOpen(true)}
         />
 
         {/* Center Canvas / Preview Area */}
@@ -979,6 +1022,7 @@ export default function MultiComponentSection() {
                   activeTheme={activeTheme}
                   activeFont={activeFont}
                   activeRadius={activeRadius}
+                  siteConfig={siteConfig}
                 />
               ))}
 
@@ -1026,6 +1070,7 @@ export default function MultiComponentSection() {
             onSaveButtonComponent={handleSaveButtonComponent}
             onEditSectionContent={handleEditContent}
             onEditSectionCode={handleEditSectionCode}
+            onUpdateSectionCode={handleUpdateSectionLiveCode}
             onMoveUp={handleMoveUp}
             onMoveDown={handleMoveDown}
             onDeleteSection={handleDelete}

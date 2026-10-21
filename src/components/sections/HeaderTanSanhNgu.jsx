@@ -8,16 +8,22 @@ const links = [
   ['FAQ', '#faq'],
 ];
 
-export default function HeaderTanSanhNgu() {
+export default function HeaderTanSanhNgu({ data = {} }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const logoUrl = data.logoUrl || data.logo || "/assets/LOGO2.png";
+  const brandName = data.brandName || "Tân Sanh Ngữ";
 
   return (
     <header className="sticky top-0 z-50 border-b border-primary/10 bg-surface/95 backdrop-blur">
       <div className="container mx-auto flex min-h-[82px] w-[calc(100%-3rem)] max-w-[1200px] items-center justify-between gap-7 md:w-[calc(100%-5rem)]">
         
         {/* Logo */}
-        <a className="flex shrink-0 items-center gap-2.5" href="#top" aria-label="Tân Sanh Ngữ - về đầu trang">
-          <img src="/assets/LOGO2.png" className="w-[150px] h-auto" alt="Logo Tân Sanh Ngữ" />
+        <a className="flex shrink-0 items-center gap-2.5" href="#top" aria-label={`${brandName} - về đầu trang`}>
+          {logoUrl ? (
+            <img src={logoUrl} className="w-[150px] max-h-12 object-contain" alt={`Logo ${brandName}`} />
+          ) : (
+            <span className="font-heading font-black text-xl text-primary">{brandName}</span>
+          )}
         </a>
 
         {/* Mobile Hamburger Button */}
