@@ -10,10 +10,10 @@ import {
   RefreshCw,
   Code,
   Square,
-  Sliders,
   FileJson,
   Upload,
   LogOut,
+  Lock,
 } from 'lucide-react';
 
 export default function AdminHeader({
@@ -30,8 +30,6 @@ export default function AdminHeader({
   onOpenConvertModal,
   onResetCanvas,
   sectionsCount,
-  isRightPanelOpen = true,
-  onToggleRightPanel,
   onExportJson,
   onImportJson,
   onLogout,
@@ -154,22 +152,6 @@ export default function AdminHeader({
           </button>
         )}
 
-        {/* Toggle Right Inspector Sidebar */}
-        {onToggleRightPanel && (
-          <button
-            onClick={onToggleRightPanel}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm ${
-              isRightPanelOpen
-                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white hover:bg-slate-700'
-            }`}
-            title="Bật/Tắt thanh tùy chỉnh Section & Nút bấm bên phải (Cố định khi cuộn)"
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Tùy Chỉnh Section</span>
-          </button>
-        )}
-
         {/* Export Button */}
         <button
           onClick={onOpenExportModal}
@@ -184,14 +166,15 @@ export default function AdminHeader({
           <span>🚀 Tạo Dự Án ({sectionsCount})</span>
         </button>
 
-        {/* Logout Button */}
+        {/* Lock Studio Security Button */}
         {onLogout && (
           <button
             onClick={onLogout}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 border border-slate-700 transition"
-            title="Đăng xuất khỏi tài khoản Studio"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700 hover:border-rose-800/60 transition text-xs font-bold active:scale-95"
+            title="Khóa Studio bằng mật khẩu bảo vệ"
           >
-            <LogOut className="w-4 h-4" />
+            <Lock className="w-3.5 h-3.5 text-rose-400" />
+            <span className="hidden sm:inline">Khóa Trang</span>
           </button>
         )}
 

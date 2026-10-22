@@ -6,12 +6,12 @@ import ThemeCustomizerModal from './components/admin/ThemeCustomizerModal';
 import ExportModal from './components/admin/ExportModal';
 import CodeEditorModal from './components/admin/CodeEditorModal';
 import ContentEditorModal from './components/admin/ContentEditorModal';
-import SectionInspectorPanel from './components/admin/SectionInspectorPanel';
 import HtmlToReactTailwindModal from './components/admin/HtmlToReactTailwindModal';
 import LoginModal from './components/admin/LoginModal';
+import SaveSectionModal from './components/admin/SaveSectionModal';
 import { COLOR_PRESETS, FONT_PRESETS, RADIUS_PRESETS } from './data/themes';
 import { SECTIONS_CATALOG } from './data/sectionsCatalog';
-import { Plus, Sparkles, Layers, ArrowDown, Code, Eye, EyeOff, Sliders } from 'lucide-react';
+import { Plus, Sparkles, Layers, ArrowDown, Code, Eye, EyeOff, Check, BookmarkPlus } from 'lucide-react';
 import { generateUpdatedSectionJsx } from './utils/sectionBlockManager';
 import { applyThemeToDom } from './utils/colorSystem';
 import { switchSectionColorTheme } from './utils/sectionColorTransform';
@@ -29,15 +29,8 @@ const STORAGE_KEYS = {
 };
 
 export default function App() {
-  // Authentication State (Mặc định cần đăng nhập)
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    try {
-      const session = localStorage.getItem(STORAGE_KEYS.AUTH);
-      return Boolean(session);
-    } catch {
-      return false;
-    }
-  });
+  // Authentication State (Luôn yêu cầu đăng nhập mật khẩu ngay khi mới vào trang)
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Site Brand & Meta Config
   const [siteConfig, setSiteConfig] = useState(() => {
@@ -85,9 +78,10 @@ export default function App() {
   const [editingSection, setEditingSection] = useState(null);
   const [editingContentItem, setEditingContentItem] = useState(null);
   const [singleSectionCode, setSingleSectionCode] = useState(null);
+  const [savingSectionItem, setSavingSectionItem] = useState(null);
+  const [saveToast, setSaveToast] = useState('');
 
-  // Right Inspector Sidebar State & Selected Section (Cố định bên phải khi cuộn)
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  // Selected Section
   const [selectedSectionId, setSelectedSectionId] = useState(null);
 
   // Saved Custom Code Templates (Sections)
@@ -293,6 +287,7 @@ export default function App() {
         sectionDef: { ...sectionDef },
       };
       setCanvasSections((prev) => [...prev, newInstance]);
+      setSelectedSectionId(newInstance.instanceId);
       return;
     }
 
@@ -302,6 +297,178 @@ export default function App() {
       customData: { ...sectionDef.defaultData },
     };
     setCanvasSections((prev) => [...prev, newInstance]);
+    setSelectedSectionId(newInstance.instanceId);
+  };
+
+  // Add saved section to canvas (creates an independent clone with refreshed IDs)
+  const handleAddSavedSection = (savedTmpl) => {
+    const newInstanceId = `${savedTmpl.presetSectionId || 'saved'}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    // Safely deep clone layoutSettings & regenerate extraBlocks IDs to prevent duplicate internal block IDs
+    let clonedLayout = null;
+    if (savedTmpl.layoutSettings) {
+      clonedLayout = JSON.parse(JSON.stringify(savedTmpl.layoutSettings));
+      if (Array.isArray(clonedLayout.extraBlocks) && clonedLayout.extraBlocks.length > 0) {
+        const idMap = {};
+        clonedLayout.extraBlocks = clonedLayout.extraBlocks.map((blk) => {
+          const newId = `blk-${blk.type || 'comp'}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+          idMap[blk.id] = newId;
+          return { ...blk, id: newId };
+        });
+        if (Array.isArray(clonedLayout.blocksOrder)) {
+          clonedLayout.blocksOrder = clonedLayout.blocksOrder.map((oldId) => idMap[oldId] || oldId);
+        }
+      }
+    }
+
+    if (savedTmpl.presetSectionId) {
+      const originalDef = SECTIONS_CATALOG.find((s) => s.id === savedTmpl.presetSectionId);
+      const newInstance = {
+        instanceId: newInstanceId,
+        name: savedTmpl.name,
+        isCustom: Boolean(savedTmpl.isCustom),
+        customCode: savedTmpl.customCode || undefined,
+        customData: savedTmpl.customData ? JSON.parse(JSON.stringify(savedTmpl.customData)) : { ...(originalDef?.defaultData || {}) },
+        buttonSettings: savedTmpl.buttonSettings ? JSON.parse(JSON.stringify(savedTmpl.buttonSettings)) : undefined,
+        styleSettings: savedTmpl.styleSettings ? JSON.parse(JSON.stringify(savedTmpl.styleSettings)) : undefined,
+        layoutSettings: clonedLayout,
+        deletedFields: savedTmpl.deletedFields ? [...savedTmpl.deletedFields] : undefined,
+        colorTheme: savedTmpl.colorTheme,
+        sectionDef: originalDef || {
+          id: savedTmpl.presetSectionId,
+          name: savedTmpl.name,
+          source: savedTmpl.source,
+          badge: savedTmpl.badge,
+        },
+      };
+      setCanvasSections((prev) => [...prev, newInstance]);
+      setSelectedSectionId(newInstanceId);
+      return;
+    }
+
+    // Custom code section
+    const newInstance = {
+      instanceId: newInstanceId,
+      name: savedTmpl.name,
+      isCustom: true,
+      customCode: savedTmpl.customCode,
+      category: savedTmpl.category,
+      styleSettings: savedTmpl.styleSettings ? JSON.parse(JSON.stringify(savedTmpl.styleSettings)) : undefined,
+      layoutSettings: clonedLayout,
+      sectionDef: {
+        id: `custom-${Date.now()}`,
+        name: savedTmpl.name,
+        source: savedTmpl.source || 'Đã Lưu (Custom Code)',
+        badge: savedTmpl.badge || 'Code',
+        isCustom: true,
+        category: savedTmpl.category,
+        customCode: savedTmpl.customCode,
+        fileName: savedTmpl.fileName || `${(savedTmpl.name || 'CustomSection').replace(/[^a-zA-Z0-9]/g, '_')}.jsx`,
+      },
+    };
+    setCanvasSections((prev) => [...prev, newInstance]);
+    setSelectedSectionId(newInstanceId);
+  };
+
+  // Rename saved template
+  const handleRenameCustomTemplate = (id, newName) => {
+    if (!newName || !newName.trim()) return;
+    setCustomTemplates((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, name: newName.trim() } : t))
+    );
+  };
+
+  // Duplicate saved template
+  const handleDuplicateCustomTemplate = (id) => {
+    const target = customTemplates.find((t) => t.id === id);
+    if (!target) return;
+    const duplicated = {
+      ...JSON.parse(JSON.stringify(target)),
+      id: `tmpl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: `${target.name} (Bản sao)`,
+      savedAt: new Date().toISOString(),
+    };
+    setCustomTemplates((prev) => [duplicated, ...prev]);
+  };
+
+  // Create empty section on canvas
+  const handleCreateEmptySection = () => {
+    const instanceId = `empty-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const initialCode = `import React from 'react';
+
+export default function CustomSection_${Date.now().toString(36)}() {
+  return (
+    <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white border-y border-slate-100 text-center">
+      <div className="max-w-4xl mx-auto space-y-4">
+        <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-200">
+          Section Trống
+        </span>
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          Tiêu Đề Section Mới
+        </h2>
+        <p className="text-sm text-slate-500 max-w-2xl mx-auto leading-relaxed">
+          Nội dung mô tả section. Bạn có thể bấm nút Code để chỉnh sửa trực tiếp hoặc thêm các Khối Con từ thanh bên.
+        </p>
+      </div>
+    </section>
+  );
+}`;
+
+    const newSection = {
+      instanceId,
+      name: 'Section Trống Mới',
+      isCustom: true,
+      customCode: initialCode,
+      category: 'custom',
+      sectionDef: {
+        id: `custom-empty-${Date.now()}`,
+        name: 'Section Trống Mới',
+        source: 'Tùy Biến (Trống)',
+        badge: 'Trống',
+        isCustom: true,
+        category: 'custom',
+        customCode: initialCode,
+        fileName: 'CustomSection.jsx',
+      },
+    };
+    setCanvasSections((prev) => [...prev, newSection]);
+    setSelectedSectionId(instanceId);
+  };
+
+  // Save canvas section into saved templates library
+  const handleSaveCanvasSectionAsTemplate = ({ name, sectionItem }) => {
+    const isCustom = Boolean(sectionItem.isCustom || sectionItem.sectionDef?.isCustom);
+    const newSavedTemplate = {
+      id: `tmpl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name,
+      savedAt: new Date().toISOString(),
+      isCustom,
+      category: sectionItem.category || sectionItem.sectionDef?.category || 'custom',
+      badge: sectionItem.sectionDef?.badge || (isCustom ? 'Custom' : 'Saved'),
+      source: sectionItem.sectionDef?.source || (isCustom ? 'Tùy Biến' : 'Mẫu Đã Lưu'),
+      customCode: sectionItem.customCode || (isCustom ? sectionItem.sectionDef?.customCode : null),
+      presetSectionId: !isCustom ? sectionItem.sectionDef?.id : null,
+      customData: sectionItem.customData ? JSON.parse(JSON.stringify(sectionItem.customData)) : null,
+      buttonSettings: sectionItem.buttonSettings ? JSON.parse(JSON.stringify(sectionItem.buttonSettings)) : null,
+      styleSettings: sectionItem.styleSettings ? JSON.parse(JSON.stringify(sectionItem.styleSettings)) : null,
+      layoutSettings: sectionItem.layoutSettings ? JSON.parse(JSON.stringify(sectionItem.layoutSettings)) : null,
+      deletedFields: sectionItem.deletedFields ? [...sectionItem.deletedFields] : null,
+      colorTheme: sectionItem.colorTheme,
+      sectionDef: {
+        id: sectionItem.sectionDef?.id,
+        name,
+        source: sectionItem.sectionDef?.source,
+        badge: sectionItem.sectionDef?.badge,
+        category: sectionItem.sectionDef?.category,
+        isCustom: sectionItem.sectionDef?.isCustom,
+        fileName: sectionItem.sectionDef?.fileName,
+      },
+    };
+
+    setCustomTemplates((prev) => [newSavedTemplate, ...prev]);
+    setSavingSectionItem(null);
+    setSaveToast(`Đã lưu thành công mẫu "${name}" vào thư viện Đã Lưu!`);
+    setTimeout(() => setSaveToast(''), 4000);
   };
 
   // Save or Update custom code (Section or Component)
@@ -883,13 +1050,19 @@ export default function MultiComponentSection() {
     e.target.value = ''; // Reset input file
   };
 
-  // 3. Đăng xuất Studio
+  // 3. Khóa Studio / Đăng xuất
   const handleLogout = () => {
-    if (window.confirm('Bạn có chắc muốn đăng xuất khỏi Studio không?')) {
+    if (window.confirm('Bạn có chắc muốn khóa Studio và đăng xuất không?')) {
       localStorage.removeItem(STORAGE_KEYS.AUTH);
+      sessionStorage.removeItem(STORAGE_KEYS.AUTH);
       setIsAuthenticated(false);
     }
   };
+
+  // Khóa bảo mật: Phải nhập đúng mật khẩu trước khi vào trang Studio
+  if (!isAuthenticated) {
+    return <LoginModal onLoginSuccess={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-body selection:bg-blue-600 selection:text-white">
@@ -909,17 +1082,10 @@ export default function MultiComponentSection() {
         }}
         onResetCanvas={handleResetCanvas}
         sectionsCount={canvasSections.length}
-        isRightPanelOpen={isRightPanelOpen}
-        onToggleRightPanel={() => setIsRightPanelOpen((prev) => !prev)}
         onExportJson={handleExportJson}
         onImportJson={handleImportJson}
         onLogout={handleLogout}
       />
-
-      {/* Login Modal khi chưa đăng nhập */}
-      {!isAuthenticated && (
-        <LoginModal onLoginSuccess={() => setIsAuthenticated(true)} />
-      )}
 
       {/* Main Studio Workspace */}
       <div className="flex-1 flex w-full relative items-start">
@@ -927,6 +1093,7 @@ export default function MultiComponentSection() {
         {/* Left Drawer / Sidebar */}
         <SectionSidebar
           onAddSection={handleAddSection}
+          onAddSavedSection={handleAddSavedSection}
           onAddComponentToSection={handleAddComponentToSection}
           canvasSections={canvasSections}
           selectedSectionId={selectedSectionId}
@@ -935,9 +1102,12 @@ export default function MultiComponentSection() {
           onOpenCodeModal={handleOpenCodeModal}
           addedSectionIds={canvasSections.map((s) => s.sectionDef?.id || s.instanceId)}
           customTemplates={customTemplates}
+          onRenameCustomTemplate={handleRenameCustomTemplate}
+          onDuplicateCustomTemplate={handleDuplicateCustomTemplate}
           onDeleteCustomTemplate={handleDeleteCustomTemplate}
           customComponents={customComponents}
           onDeleteCustomComponent={handleDeleteCustomComponent}
+          onCreateEmptySection={handleCreateEmptySection}
           activeTheme={activeTheme}
           setActiveTheme={setActiveTheme}
           activeFont={activeFont}
@@ -1019,6 +1189,7 @@ export default function MultiComponentSection() {
                   onViewCode={handleViewSectionCode}
                   onEditCode={handleEditSectionCode}
                   onEditContent={handleEditContent}
+                  onSaveAsTemplate={(targetItem) => setSavingSectionItem(targetItem)}
                   activeTheme={activeTheme}
                   activeFont={activeFont}
                   activeRadius={activeRadius}
@@ -1055,44 +1226,7 @@ export default function MultiComponentSection() {
 
         </main>
 
-        {/* Right Sidebar Inspector (CỐ ĐỊNH BÊN PHẢI KHI CUỘN CANVAS) */}
-        {isRightPanelOpen && (
-          <SectionInspectorPanel
-            isOpen={isRightPanelOpen}
-            onClose={() => setIsRightPanelOpen(false)}
-            sections={canvasSections}
-            selectedSectionId={selectedSectionId}
-            onSelectSection={setSelectedSectionId}
-            onSwitchSectionColor={handleSwitchSectionColor}
-            onUpdateSectionStyles={handleUpdateSectionStyles}
-            onUpdateSectionLayout={handleUpdateSectionLayout}
-            onUpdateSectionButton={handleUpdateSectionButton}
-            onSaveButtonComponent={handleSaveButtonComponent}
-            onEditSectionContent={handleEditContent}
-            onEditSectionCode={handleEditSectionCode}
-            onUpdateSectionCode={handleUpdateSectionLiveCode}
-            onMoveUp={handleMoveUp}
-            onMoveDown={handleMoveDown}
-            onDeleteSection={handleDelete}
-            activeTheme={activeTheme}
-            activeFont={activeFont}
-            activeRadius={activeRadius}
-          />
-        )}
-
       </div>
-
-      {/* Floating Re-Open Inspector Button when closed */}
-      {!isRightPanelOpen && canvasSections.length > 0 && (
-        <button
-          onClick={() => setIsRightPanelOpen(true)}
-          className="fixed bottom-6 right-6 z-40 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-xs shadow-xl shadow-blue-500/30 flex items-center gap-2 border border-blue-400/40 active:scale-95 transition-all"
-          title="Mở thanh Tùy Chỉnh Section & Nút Bấm bên phải"
-        >
-          <Sliders className="w-4 h-4 text-amber-300" />
-          <span>Tùy Chỉnh Section</span>
-        </button>
-      )}
 
       {/* Code Editor Modal */}
       <CodeEditorModal
@@ -1161,6 +1295,22 @@ export default function MultiComponentSection() {
           setIsCodeModalOpen(true);
         }}
       />
+
+      {/* Save Section As Template Modal */}
+      <SaveSectionModal
+        isOpen={Boolean(savingSectionItem)}
+        sectionItem={savingSectionItem}
+        onClose={() => setSavingSectionItem(null)}
+        onSave={handleSaveCanvasSectionAsTemplate}
+      />
+
+      {/* Save Toast Notification */}
+      {saveToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-emerald-600 text-white font-bold text-xs shadow-2xl border border-emerald-400 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <Check className="w-4 h-4 text-white shrink-0" />
+          <span>{saveToast}</span>
+        </div>
+      )}
 
     </div>
   );

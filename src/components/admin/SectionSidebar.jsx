@@ -21,6 +21,8 @@ import {
   Image as ImageIcon,
   Sliders,
   Type,
+  MoreVertical,
+  BookmarkPlus,
 } from 'lucide-react';
 import { SECTION_CATEGORIES, SECTIONS_CATALOG } from '../../data/sectionsCatalog';
 import { SUBCOMPONENTS_CATALOG } from '../../data/subcomponentsCatalog';
@@ -32,6 +34,7 @@ const EDUCATION_CATEGORIES = ['courses', 'schedule', 'roadmap', 'teachers', 'nee
 
 export default function SectionSidebar({
   onAddSection,
+  onAddSavedSection,
   onAddComponentToSection,
   canvasSections = [],
   selectedSectionId,
@@ -40,9 +43,12 @@ export default function SectionSidebar({
   onOpenCodeModal,
   addedSectionIds = [],
   customTemplates = [],
+  onRenameCustomTemplate,
+  onDuplicateCustomTemplate,
   onDeleteCustomTemplate,
   customComponents = [],
   onDeleteCustomComponent,
+  onCreateEmptySection,
   activeTheme,
   setActiveTheme,
   activeFont,
@@ -56,9 +62,11 @@ export default function SectionSidebar({
   onOpenThemeModal,
 }) {
   const [sidebarTab, setSidebarTab] = useState('sections'); // 'sections' | 'brand-theme' | 'components'
+  const [sectionLibraryTab, setSectionLibraryTab] = useState('templates'); // 'templates' | 'saved'
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   // Active targeted section for inserting components
   const targetSection =
@@ -211,8 +219,37 @@ export default function StandaloneBlock_${timestamp}() {
           </div>
         )}
 
-        {/* Category Pills (Only for Sections) with Education distinction */}
+        {/* Sub-tabs: [ Mẫu Có Sẵn (X) ] [ Đã Lưu (Y) ] */}
         {sidebarTab === 'sections' && (
+          <div className="flex items-center p-1 bg-slate-950/80 rounded-xl border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setSectionLibraryTab('templates')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                sectionLibraryTab === 'templates'
+                  ? 'bg-blue-600 text-white shadow-sm font-black'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>Mẫu Có Sẵn ({filteredSections.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSectionLibraryTab('saved')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                sectionLibraryTab === 'saved'
+                  ? 'bg-blue-600 text-white shadow-sm font-black'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>Đã Lưu ({(customTemplates || []).length})</span>
+            </button>
+          </div>
+        )}
+
+        {/* Category Pills (Only for Sections when in 'templates' sub-tab) */}
+        {sidebarTab === 'sections' && sectionLibraryTab === 'templates' && (
           <div className="space-y-1.5 pt-0.5">
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
               {SECTION_CATEGORIES.map((cat) => {
@@ -759,156 +796,278 @@ export default function StandaloneBlock_${timestamp}() {
 
       {/* Main Content Area: Sections Tab */}
       {sidebarTab === 'sections' && (
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5 divide-y divide-slate-800/40">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3.5">
+            {sectionLibraryTab === 'templates' ? (
+              <>
+                {/* Section Header */}
+                <div className="flex items-center justify-between text-xs text-slate-400 px-1 font-semibold">
+                  <span>Kho Section Mẫu ({filteredSections.length})</span>
+                  <span className="text-[11px] text-blue-400">Click để thêm vào trang</span>
+                </div>
 
-          {/* Saved Custom Code Section Templates (if any exist) */}
-          {customTemplates && customTemplates.length > 0 && (
-            <div className="pb-3 space-y-2">
-              <div className="flex items-center justify-between text-xs text-emerald-400 font-bold px-1">
-                <span className="flex items-center gap-1">
-                  <Code className="w-3.5 h-3.5" />
-                  <span>Section Tự Tạo Của Bạn ({customTemplates.length})</span>
-                </span>
-                <span className="text-[10px] text-slate-400">Đã lưu trong máy</span>
-              </div>
+                {/* Preset Sections Catalog */}
+                {filteredSections.map((sec) => {
+                  const isAdded = addedSectionIds.includes(sec.id);
+                  const isEducation = EDUCATION_CATEGORIES.includes(sec.category);
 
-              <div className="space-y-2">
-                {customTemplates.map((custom) => (
-                  <div
-                    key={custom.id}
-                    className="p-3 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 hover:border-emerald-500/60 transition-all space-y-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-heading font-extrabold text-xs text-white truncate max-w-[180px]">
-                        {custom.name}
-                      </span>
-                      <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-mono">
-                        {custom.category ? `${custom.category}` : 'Custom'}
-                      </span>
-                    </div>
+                  return (
+                    <div
+                      key={sec.id}
+                      className={`group rounded-2xl bg-slate-800/50 hover:bg-slate-800 p-3.5 border transition-all duration-200 space-y-2.5 shadow-sm hover:shadow-md ${
+                        isEducation
+                          ? 'border-amber-500/30 hover:border-amber-500/60'
+                          : 'border-slate-700/70 hover:border-blue-500/50'
+                      }`}
+                    >
+                      {/* Header with Title & Source Badge */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-heading font-extrabold text-sm text-white group-hover:text-blue-300 transition-colors">
+                              {sec.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            {isEducation && (
+                              <span className="text-[10px] font-bold text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                                🎓 Giáo Dục
+                              </span>
+                            )}
+                            <span className="text-[10px] font-mono text-slate-400">
+                              {sec.source}
+                            </span>
+                          </div>
+                        </div>
 
-                    <div className="flex items-center gap-1.5 pt-1">
-                      <button
-                        onClick={() => onAddSection(custom)}
-                        className="flex-1 py-1.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center justify-center gap-1 active:scale-95"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Thêm Vào Trang</span>
-                      </button>
+                        <span className="shrink-0 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/20">
+                          {sec.badge}
+                        </span>
+                      </div>
 
-                      <button
-                        onClick={() => onOpenCodeModal && onOpenCodeModal(custom, 'section')}
-                        className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs transition"
-                        title="Sửa code mẫu này"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
+                      {/* Description */}
+                      <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">
+                        {sec.description}
+                      </p>
 
-                      {onDeleteCustomTemplate && (
+                      {/* Action Buttons */}
+                      <div className="pt-1 flex items-center gap-2">
                         <button
-                          onClick={() => onDeleteCustomTemplate(custom.id)}
-                          className="p-1.5 rounded-xl bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 border border-slate-700 text-xs transition"
-                          title="Xóa mẫu này"
+                          type="button"
+                          onClick={() => onAddSection(sec)}
+                          className={`flex-1 py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm ${
+                            isAdded
+                              ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40 hover:bg-blue-600 hover:text-white'
+                              : 'bg-blue-600 hover:bg-blue-500 text-white'
+                          }`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>{isAdded ? 'Thêm Thêm (+1)' : 'Thêm Vào Trang'}</span>
                         </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {/* Section Header */}
-          <div className="flex items-center justify-between text-xs text-slate-400 px-1 font-semibold pt-2">
-            <span>Kho Section Mẫu ({filteredSections.length})</span>
-            <span className="text-[11px] text-blue-400">Click để thêm vào trang</span>
+                        <button
+                          type="button"
+                          onClick={() => onViewSectionCode(sec)}
+                          className="p-2 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 transition-all active:scale-95"
+                          title="Xem và xuất code JSX riêng của section này"
+                        >
+                          <Code className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {filteredSections.length === 0 && (
+                  <div className="py-12 text-center text-slate-500 text-xs space-y-2">
+                    <p>Không tìm thấy section phù hợp với từ khóa.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory('all');
+                        setSearchQuery('');
+                      }}
+                      className="text-blue-400 hover:underline font-bold"
+                    >
+                      Xóa bộ lọc tìm kiếm
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Saved Sections Header */}
+                <div className="flex items-center justify-between text-xs text-slate-400 px-1 font-semibold">
+                  <span className="flex items-center gap-1 text-emerald-400 font-bold">
+                    <BookmarkPlus className="w-3.5 h-3.5" />
+                    <span>Section Đã Lưu ({customTemplates.length})</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">Đã lưu trong máy</span>
+                </div>
+
+                {customTemplates.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 space-y-3 px-4">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 text-slate-500 flex items-center justify-center mx-auto">
+                      <BookmarkPlus className="w-6 h-6 text-emerald-400" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-300">Chưa có section nào được lưu</p>
+                    <p className="text-[11px] text-slate-500 leading-relaxed max-w-xs mx-auto">
+                      Bấm biểu tượng <span className="text-amber-300 font-semibold">Lưu Mẫu</span> trên thanh công cụ của bất kỳ section nào trên Canvas để lưu vào đây.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {customTemplates.map((custom) => {
+                      const isMenuOpen = openMenuId === custom.id;
+                      const handleAdd = () => {
+                        if (onAddSavedSection) {
+                          onAddSavedSection(custom);
+                        } else {
+                          onAddSection(custom);
+                        }
+                      };
+
+                      return (
+                        <div
+                          key={custom.id}
+                          className="relative rounded-2xl bg-slate-800/50 hover:bg-slate-800 p-3.5 border border-emerald-500/30 hover:border-emerald-500/60 transition-all duration-200 space-y-2.5 shadow-sm hover:shadow-md"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-heading font-extrabold text-xs text-white truncate" title={custom.name}>
+                                {custom.name}
+                              </h4>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="text-[10px] text-emerald-400 font-mono">
+                                  {custom.source || 'Mẫu Đã Lưu'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 font-mono">
+                                {custom.badge || (custom.isCustom ? 'Custom' : 'Saved')}
+                              </span>
+
+                              {/* Three-dots menu button */}
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenMenuId(isMenuOpen ? null : custom.id);
+                                  }}
+                                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/80 transition"
+                                  title="Quản lý mẫu"
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </button>
+
+                                {isMenuOpen && (
+                                  <>
+                                    <div
+                                      className="fixed inset-0 z-30"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenMenuId(null);
+                                      }}
+                                    />
+                                    <div
+                                      className="absolute right-0 top-full mt-1.5 w-44 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1 z-40 space-y-0.5 animate-in fade-in zoom-in-95 duration-100"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenMenuId(null);
+                                          const newName = window.prompt('Nhập tên mới cho mẫu section:', custom.name);
+                                          if (newName && newName.trim() && newName.trim() !== custom.name) {
+                                            onRenameCustomTemplate && onRenameCustomTemplate(custom.id, newName.trim());
+                                          }
+                                        }}
+                                        className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 flex items-center gap-2 transition"
+                                      >
+                                        <Edit3 className="w-3.5 h-3.5 text-blue-400" />
+                                        <span>Đổi tên</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenMenuId(null);
+                                          onDuplicateCustomTemplate && onDuplicateCustomTemplate(custom.id);
+                                        }}
+                                        className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 flex items-center gap-2 transition"
+                                      >
+                                        <Copy className="w-3.5 h-3.5 text-amber-400" />
+                                        <span>Nhân bản mẫu</span>
+                                      </button>
+
+                                      {custom.isCustom && onOpenCodeModal && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setOpenMenuId(null);
+                                            onOpenCodeModal(custom, 'section');
+                                          }}
+                                          className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 flex items-center gap-2 transition"
+                                        >
+                                          <Code className="w-3.5 h-3.5 text-cyan-400" />
+                                          <span>Sửa code JSX</span>
+                                        </button>
+                                      )}
+
+                                      <div className="my-1 border-t border-slate-800" />
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setOpenMenuId(null);
+                                          onDeleteCustomTemplate && onDeleteCustomTemplate(custom.id);
+                                        }}
+                                        className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 flex items-center gap-2 transition"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                                        <span>Xóa khỏi thư viện</span>
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Add to Canvas button */}
+                          <div className="pt-1 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleAdd}
+                              className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 active:scale-95 shadow-sm shadow-emerald-500/20"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ Thêm Vào Trang</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {/* Preset Sections Catalog */}
-          {filteredSections.map((sec) => {
-            const isAdded = addedSectionIds.includes(sec.id);
-            const isEducation = EDUCATION_CATEGORIES.includes(sec.category);
-
-            return (
-              <div
-                key={sec.id}
-                className={`pt-3 group rounded-2xl bg-slate-800/50 hover:bg-slate-800 p-3.5 border transition-all duration-200 space-y-2.5 shadow-sm hover:shadow-md ${isEducation
-                  ? 'border-amber-500/30 hover:border-amber-500/60'
-                  : 'border-slate-700/70 hover:border-blue-500/50'
-                  }`}
-              >
-                {/* Header with Title & Source Badge */}
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-heading font-extrabold text-sm text-white group-hover:text-blue-300 transition-colors">
-                        {sec.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      {isEducation && (
-                        <span className="text-[10px] font-bold text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
-                          🎓 Giáo Dục
-                        </span>
-                      )}
-                      <span className="text-[10px] font-mono text-slate-400">
-                        {sec.source}
-                      </span>
-                    </div>
-                  </div>
-
-                  <span className="shrink-0 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/20">
-                    {sec.badge}
-                  </span>
-                </div>
-
-                {/* Description */}
-                <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">
-                  {sec.description}
-                </p>
-
-                {/* Action Buttons */}
-                <div className="pt-1 flex items-center gap-2">
-                  <button
-                    onClick={() => onAddSection(sec)}
-                    className={`flex-1 py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm ${isAdded
-                      ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40 hover:bg-blue-600 hover:text-white'
-                      : 'bg-blue-600 hover:bg-blue-500 text-white'
-                      }`}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>{isAdded ? 'Thêm Thêm (+1)' : 'Thêm Vào Trang'}</span>
-                  </button>
-
-                  <button
-                    onClick={() => onViewSectionCode(sec)}
-                    className="p-2 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 transition-all active:scale-95"
-                    title="Xem và xuất code JSX riêng của section này"
-                  >
-                    <Code className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-
-          {filteredSections.length === 0 && (
-            <div className="py-12 text-center text-slate-500 text-xs space-y-2">
-              <p>Không tìm thấy section phù hợp với từ khóa.</p>
-              <button
-                onClick={() => {
-                  setSelectedCategory('all');
-                  setSearchQuery('');
-                }}
-                className="text-blue-400 hover:underline font-bold"
-              >
-                Xóa bộ lọc tìm kiếm
-              </button>
-            </div>
-          )}
-
+          {/* + Tạo Section Trống Button (At bottom of Sections tab) */}
+          <div className="p-3 border-t border-slate-800 bg-slate-900/95 shrink-0">
+            <button
+              type="button"
+              onClick={onCreateEmptySection}
+              className="w-full py-2.5 px-3 rounded-xl border border-dashed border-blue-500/50 hover:border-blue-400 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 hover:text-blue-300 font-extrabold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Tạo Section Trống</span>
+            </button>
+          </div>
         </div>
       )}
 

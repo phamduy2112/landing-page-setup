@@ -7,6 +7,7 @@ import {
   Edit3,
   Copy,
   Check,
+  BookmarkPlus,
   Sparkles,
   Sliders,
   FileText,
@@ -368,6 +369,7 @@ export default function CanvasSectionItem({
   onViewCode,
   onEditCode,
   onEditContent,
+  onSaveAsTemplate,
   activeTheme,
   activeFont,
   activeRadius = 16,
@@ -525,6 +527,21 @@ export default function CanvasSectionItem({
               {!isMobile && !isTablet && <span>{copied ? 'Đã Copy!' : 'Copy'}</span>}
             </button>
 
+            {/* Save Section As Template (BookmarkPlus) */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSaveAsTemplate && onSaveAsTemplate(item);
+              }}
+              className={`rounded-lg border text-xs font-bold transition-all flex items-center gap-1 shrink-0 ${
+                isMobile ? 'p-1.5' : 'px-2 py-1.5'
+              } bg-slate-800 hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border-slate-700 hover:border-amber-500/40 active:scale-95 shadow-sm`}
+              title="Lưu Section Thành Mẫu"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              {!isMobile && !isTablet && <span>Lưu Mẫu</span>}
+            </button>
+
             {/* Move Up */}
             <button
               onClick={() => onMoveUp(index)}
@@ -634,6 +651,8 @@ export default function CanvasSectionItem({
                 sectionCode={customCode || getSectionSourceCode(item)}
                 sectionInstanceId={item.instanceId}
                 onUpdateSectionCode={onUpdateSectionLiveCode}
+                onUpdateSectionData={onUpdateSectionData}
+                customData={item.customData}
                 isActive={true}
               />
               <SectionStyledWrapper
@@ -662,6 +681,8 @@ export default function CanvasSectionItem({
               sectionCode={customCode || getSectionSourceCode(item)}
               sectionInstanceId={item.instanceId}
               onUpdateSectionCode={onUpdateSectionLiveCode}
+              onUpdateSectionData={onUpdateSectionData}
+              customData={item.customData}
               isActive={true}
             />
             <SectionStyledWrapper

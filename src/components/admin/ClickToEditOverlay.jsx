@@ -17,7 +17,7 @@ import {
   Box,
   Layers,
 } from 'lucide-react';
-import { replaceImageInCode } from '../../utils/sectionElementTransform';
+import { replaceImageInCode, PRESET_IMAGE_SUGGESTIONS } from '../../utils/sectionElementTransform';
 
 // Preset color options for quick 1-click styling
 const COLOR_PRESETS = [
@@ -90,6 +90,8 @@ export default function ClickToEditOverlay({
   sectionCode,
   sectionInstanceId,
   onUpdateSectionCode,
+  onUpdateSectionData,
+  customData = {},
   isActive = true,
 }) {
   const [selectedElement, setSelectedElement] = useState(null);
@@ -156,8 +158,9 @@ export default function ClickToEditOverlay({
           width: rect.width,
           height: rect.height,
         });
+        const isImgCandidate = tag === 'img' || target.querySelector('img') || target.closest('.group')?.querySelector('img');
         const isContainer = ['div', 'article', 'section', 'li'].includes(tag);
-        setHoverTag(isContainer ? `${tag} (Khối)` : tag);
+        setHoverTag(isImgCandidate ? '📷 Click để đổi ảnh trực tiếp' : isContainer ? `${tag} (Khối)` : tag);
       }
     };
 
@@ -171,8 +174,20 @@ export default function ClickToEditOverlay({
       if (!target || target === container) return;
       if (popoverRef.current && popoverRef.current.contains(target)) return;
 
-      const tag = target.tagName.toLowerCase();
-      const isImg = tag === 'img';
+      let actualTarget = target;
+      let tag = actualTarget.tagName.toLowerCase();
+      let isImg = tag === 'img';
+
+      // Check if target is wrapping or sitting on top of an <img>
+      if (!isImg) {
+        const childImg = actualTarget.querySelector('img') || actualTarget.parentElement?.querySelector('img');
+        if (childImg && (actualTarget.classList.contains('absolute') || actualTarget.classList.contains('overflow-hidden') || actualTarget.tagName.toLowerCase() === 'div')) {
+          isImg = true;
+          actualTarget = childImg;
+          tag = 'img';
+        }
+      }
+
       const isHeading = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag);
       const isText = ['p', 'span', 'a', 'button', 'li', 'strong', 'em', 'b'].includes(tag) || isHeading;
       const isContainer = ['div', 'article', 'section'].includes(tag);
@@ -183,29 +198,29 @@ export default function ClickToEditOverlay({
       e.stopPropagation();
 
       const containerRect = container.getBoundingClientRect();
-      const rect = target.getBoundingClientRect();
+      const rect = actualTarget.getBoundingClientRect();
 
-      const anchorParent = target.closest('a');
-      const hrefVal = anchorParent ? anchorParent.getAttribute('href') || '' : target.getAttribute('href') || '';
-      const computed = window.getComputedStyle(target);
+      const anchorParent = actualTarget.closest('a');
+      const hrefVal = anchorParent ? anchorParent.getAttribute('href') || '' : actualTarget.getAttribute('href') || '';
+      const computed = window.getComputedStyle(actualTarget);
 
       // Extract direct text node content if available
       let directText = '';
-      for (const node of target.childNodes) {
+      for (const node of actualTarget.childNodes) {
         if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
           directText = node.textContent.trim();
           break;
         }
       }
       if (!directText) {
-        directText = (target.innerText || target.textContent || '').trim();
+        directText = (actualTarget.innerText || actualTarget.textContent || '').trim();
       }
 
       // Check classes of the element for unique matching in code
-      const classNameStr = (target.getAttribute('class') || '').trim();
+      const classNameStr = (actualTarget.getAttribute('class') || '').trim();
 
       const elemInfo = {
-        target,
+        target: actualTarget,
         anchorParent,
         tagName: tag,
         isImage: isImg,
@@ -213,8 +228,8 @@ export default function ClickToEditOverlay({
         isHeading,
         isContainer,
         isLink: Boolean(anchorParent) || tag === 'a',
-        src: isImg ? target.getAttribute('src') || '' : '',
-        alt: isImg ? target.getAttribute('alt') || '' : '',
+        src: isImg ? actualTarget.getAttribute('src') || '' : '',
+        alt: isImg ? actualTarget.getAttribute('alt') || '' : '',
         text: directText,
         className: classNameStr,
         color: computed.color,
@@ -479,15 +494,38 @@ export default function ClickToEditOverlay({
 
   // Save modified Image URL / Upload
   const handleSaveImage = (newSrc) => {
-    if (!selectedElement || !selectedElement.src || !newSrc || !onUpdateSectionCode) return;
+    if (!selectedElement || !newSrc) return;
+    const cleanNew = newSrc.trim();
     const oldSrc = selectedElement.src;
-    const updated = replaceImageInCode(sectionCode, oldSrc, newSrc.trim());
-    if (updated !== sectionCode) {
-      onUpdateSectionCode(sectionInstanceId, updated);
-    }
+
+    // 1. Direct real-time DOM update
     if (selectedElement.target) {
-      selectedElement.target.src = newSrc.trim();
+      selectedElement.target.src = cleanNew;
     }
+
+    // 2. Update sectionCode JSX
+    let updatedCode = sectionCode;
+    if (sectionCode && onUpdateSectionCode) {
+      if (oldSrc) {
+        updatedCode = replaceImageInCode(sectionCode, oldSrc, cleanNew);
+      }
+      if (updatedCode === sectionCode && sectionCode.includes('<img')) {
+        updatedCode = sectionCode.replace(/(<img\b[^>]*?src=["'])([^"']*?)(["'])/i, `$1${cleanNew}$3`);
+      }
+      onUpdateSectionCode(sectionInstanceId, updatedCode);
+    }
+
+    // 3. Update customData if provided
+    if (onUpdateSectionData) {
+      const updatedData = {
+        ...(customData || {}),
+        heroImage: cleanNew,
+        image: cleanNew,
+        imageSrc: cleanNew,
+      };
+      onUpdateSectionData(sectionInstanceId, updatedData, updatedCode);
+    }
+
     setSelectedElement(null);
   };
 
@@ -581,28 +619,30 @@ export default function ClickToEditOverlay({
 
           {/* Body for Image Editing */}
           {selectedElement.isImage ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={editImgSrc}
-                  onChange={(e) => setEditImgSrc(e.target.value)}
-                  placeholder="Dán link ảnh https://..."
-                  className="flex-1 px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-pink-500 font-mono"
+            <div className="space-y-3">
+              {/* Image Preview & URL Info */}
+              <div className="flex items-center gap-3 p-2 rounded-xl bg-slate-950/80 border border-slate-800">
+                <img
+                  src={editImgSrc || selectedElement.src}
+                  alt="Preview"
+                  className="w-16 h-14 rounded-lg object-cover border border-slate-700 shrink-0"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
-                <button
-                  onClick={() => handleSaveImage(editImgSrc)}
-                  className="px-2.5 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs flex items-center gap-1 shadow-sm active:scale-95"
-                >
-                  <Check className="w-3 h-3" />
-                  <span>Lưu</span>
-                </button>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10px] text-pink-400 font-bold block uppercase tracking-wider">
+                    Đang Chọn Ảnh
+                  </span>
+                  <p className="text-[11px] text-slate-300 truncate font-mono mt-0.5">
+                    {editImgSrc || selectedElement.src || 'Chưa có ảnh'}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between pt-1">
-                <label className="cursor-pointer px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-bold flex items-center gap-1 transition">
-                  <Upload className="w-3 h-3 text-pink-400" />
-                  <span>Tải ảnh từ máy tính</span>
+              {/* Direct file upload button */}
+              <div>
+                <label className="w-full cursor-pointer py-2.5 px-3 rounded-xl bg-gradient-to-r from-pink-600 via-rose-600 to-pink-500 hover:from-pink-500 hover:to-rose-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-pink-500/25 active:scale-95 transition">
+                  <Upload className="w-4 h-4" />
+                  <span>📁 Tải Ảnh Từ Máy Tính (Đổi Ngay)</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -622,8 +662,55 @@ export default function ClickToEditOverlay({
                     }}
                   />
                 </label>
-                <span className="text-[10px] text-slate-400 italic">Đổi ảnh tức thì</span>
               </div>
+
+              {/* Or paste custom URL */}
+              <div className="space-y-1">
+                <span className="text-[10px] text-slate-400 font-bold">Hoặc dán link ảnh mới (URL):</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={editImgSrc}
+                    onChange={(e) => setEditImgSrc(e.target.value)}
+                    placeholder="https://images.unsplash.com/..."
+                    className="flex-1 px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:ring-2 focus:ring-pink-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleSaveImage(editImgSrc)}
+                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-600 flex items-center gap-1 shrink-0 active:scale-95 transition"
+                  >
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Lưu</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Preset Curated Education Images */}
+              {PRESET_IMAGE_SUGGESTIONS && PRESET_IMAGE_SUGGESTIONS.length > 0 && (
+                <div className="space-y-1.5 pt-1 border-t border-slate-800">
+                  <span className="text-[10px] text-amber-400 font-bold block">
+                    ✨ Chọn ảnh mẫu đẹp sẵn (Click đổi ngay):
+                  </span>
+                  <div className="grid grid-cols-4 gap-2">
+                    {PRESET_IMAGE_SUGGESTIONS.slice(0, 4).map((p, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setEditImgSrc(p.src);
+                          handleSaveImage(p.src);
+                        }}
+                        className="group relative rounded-lg overflow-hidden border border-slate-700 hover:border-pink-500 transition aspect-video focus:outline-none"
+                        title={p.label}
+                      >
+                        <img src={p.src} alt={p.label} className="w-full h-full object-cover group-hover:scale-110 transition duration-300" />
+                        <span className="absolute inset-0 bg-slate-950/40 group-hover:bg-transparent transition" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             /* Body for Content, Font, Colors, Background & Spacing */
