@@ -196,6 +196,17 @@ ${code.split('\n').map(l => '      ' + l).join('\n')}
 `;
 }
 
+export function getWorkspaceRoot() {
+  const cwd = process.cwd();
+  if (path.basename(cwd).toLowerCase() === 'builder') {
+    return path.resolve(cwd, '..');
+  }
+  if (fs.existsSync(path.join(cwd, 'builder'))) {
+    return cwd;
+  }
+  return path.resolve('..');
+}
+
 /**
  * Main project exporter function
  */
@@ -208,7 +219,7 @@ export async function createFullLandingProject({
   radius = 16,
   autoInstall = true,
   syncToExisting = false,
-  workspaceRoot = path.resolve('..'),
+  workspaceRoot = getWorkspaceRoot(),
 }) {
   const rawProjectName = (projectName || '').trim();
   const cleanName = rawProjectName

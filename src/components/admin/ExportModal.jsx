@@ -25,6 +25,10 @@ import {
   generateCustomSectionStandaloneCode,
   downloadFile,
 } from '../../utils/codeExporter';
+import {
+  downloadProjectZipWithJsZip,
+  writeProjectToLocalDirectoryWithPicker,
+} from '../../utils/browserProjectPackager';
 import { getSectionSourceCode } from '../../data/sectionsRawCode';
 
 export default function ExportModal({
@@ -142,7 +146,88 @@ export default function Demo() {
     downloadFile(currentFileName, currentCode);
   };
 
-  // Main Handler: Auto Project Generation
+  // Helper to get prepared sections
+  const getPreparedSections = () => {
+    return canvasSections.map((s, idx) => {
+      const code = getSectionSourceCode(s);
+      const fileName = s.fileName || s.sectionDef?.fileName || `Section_${idx + 1}.jsx`;
+      const name = s.name || s.sectionDef?.name || `Section ${idx + 1}`;
+      return {
+        id: s.id,
+        fileName,
+        name,
+        code,
+        data: s.data || {},
+      };
+    });
+  };
+
+  // Direct 1-Click Browser ZIP Download (Works 100% in browser, even when deployed to Vercel/Netlify)
+  const handleDownloadZipDirectly = async () => {
+    setZipLoading(true);
+    setErrorMessage(null);
+    try {
+      const preparedSections = getPreparedSections();
+      const zipRes = await downloadProjectZipWithJsZip({
+        projectName: projectName.trim() || 'edu-landing',
+        projectTitle: projectTitle.trim() || 'Edu Landing Page',
+        sections: preparedSections,
+        theme: activeTheme,
+        font: activeFont,
+        radius: activeRadius,
+      });
+
+      setGenerationResult({
+        success: true,
+        isClientZip: true,
+        projectName: projectName.trim() || 'edu-landing',
+        targetDir: 'Thư mục Downloads (Đã tải file .zip về máy tính)',
+        componentsCount: preparedSections.length,
+        writtenFiles: preparedSections.map((s) => s.fileName),
+        downloadFileName: zipRes.fileName,
+      });
+    } catch (err) {
+      console.error('ZIP generation error:', err);
+      setErrorMessage(err.message || 'Không thể tạo file zip.');
+    } finally {
+      setZipLoading(false);
+    }
+  };
+
+  // Direct Browser Folder Writer (Chrome / Edge File System Access API)
+  const handleDirectoryPickerExport = async () => {
+    setIsGenerating(true);
+    setErrorMessage(null);
+    try {
+      const preparedSections = getPreparedSections();
+      const writeRes = await writeProjectToLocalDirectoryWithPicker({
+        projectName: projectName.trim() || 'edu-landing',
+        projectTitle: projectTitle.trim() || 'Edu Landing Page',
+        sections: preparedSections,
+        theme: activeTheme,
+        font: activeFont,
+        radius: activeRadius,
+      });
+
+      setGenerationResult({
+        success: true,
+        isClientDirectory: true,
+        projectName: writeRes.folderName,
+        targetDir: `${writeRes.parentFolderName}\\${writeRes.folderName} (Đã ghi trực tiếp vào máy tính)`,
+        componentsCount: writeRes.componentsCount,
+        writtenFiles: preparedSections.map((s) => s.fileName),
+      });
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Directory picker error:', err);
+        setErrorMessage(err.message || 'Không thể ghi vào thư mục đã chọn.');
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Main Handler: Auto Project Generation (Tự động thích ứng Localhost hoặc Web Deploy)
   const handleAutoCreateProject = async () => {
     setIsGenerating(true);
     setErrorMessage(null);
@@ -150,53 +235,79 @@ export default function Demo() {
 
     try {
       setGenerationStep(1); // Preparing data
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 200));
 
-      // Build prepared sections with clean names and full raw JSX code
-      const preparedSections = canvasSections.map((s, idx) => {
-        const code = getSectionSourceCode(s);
-        const fileName = s.fileName || s.sectionDef?.fileName || `Section_${idx + 1}.jsx`;
-        const name = s.name || s.sectionDef?.name || `Section ${idx + 1}`;
-        return {
-          id: s.id,
-          fileName,
-          name,
-          code,
-          data: s.data || {},
-        };
-      });
+      const preparedSections = getPreparedSections();
 
       setGenerationStep(2); // Splitting components
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => setTimeout(r, 200));
 
       setGenerationStep(3); // Creating configs & App.jsx
 
-      const res = await fetch('/api/create-landing-project', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let result = null;
+      let isBackendAvailable = true;
+
+      // 1. Thử gọi backend API (áp dụng khi đang chạy dev server trên localhost)
+      try {
+        const res = await fetch('/api/create-landing-project', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectName: projectName.trim() || 'edu-landing',
+            projectTitle: projectTitle.trim() || 'Edu Landing Page',
+            sections: preparedSections,
+            theme: activeTheme,
+            font: activeFont,
+            radius: activeRadius,
+            autoInstall,
+            syncToExisting,
+          }),
+        });
+
+        if (res.ok) {
+          result = await res.json();
+        } else if (res.status === 404) {
+          // Khi web được deploy (Vercel, Netlify, web host), không có Node filesystem backend -> Tự động dùng Browser Packager
+          isBackendAvailable = false;
+        } else {
+          const errJson = await res.json().catch(() => ({}));
+          throw new Error(errJson.error || `Lỗi máy chủ (${res.status})`);
+        }
+      } catch (fetchErr) {
+        isBackendAvailable = false;
+      }
+
+      // 2. Nếu chạy trên môi trường Deploy hoặc API 404: Tự động đóng gói và tải về file .ZIP ngay trên trình duyệt!
+      if (!isBackendAvailable || !result) {
+        setGenerationStep(4); // Packaging ZIP in browser
+        await new Promise((r) => setTimeout(r, 300));
+
+        const zipRes = await downloadProjectZipWithJsZip({
           projectName: projectName.trim() || 'edu-landing',
           projectTitle: projectTitle.trim() || 'Edu Landing Page',
           sections: preparedSections,
           theme: activeTheme,
           font: activeFont,
           radius: activeRadius,
-          autoInstall,
-          syncToExisting,
-        }),
-      });
+        });
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || `Lỗi máy chủ (${res.status})`);
+        result = {
+          success: true,
+          isClientZip: true,
+          isDeployedFallback: true,
+          projectName: projectName.trim() || 'edu-landing',
+          targetDir: 'Thư mục Downloads (Đã tự động tải file .zip về máy tính)',
+          componentsCount: preparedSections.length,
+          writtenFiles: preparedSections.map((s) => s.fileName),
+          downloadFileName: zipRes.fileName,
+        };
+      } else {
+        setGenerationStep(4);
+        await new Promise((r) => setTimeout(r, 300));
       }
 
-      setGenerationStep(4); // Installing dependencies
-      await new Promise((r) => setTimeout(r, 500));
-
-      const result = await res.json();
-      setGenerationResult(result);
       setGenerationStep(5); // Complete!
+      setGenerationResult(result);
     } catch (err) {
       console.error('Project creation failed:', err);
       setErrorMessage(err.message || 'Không thể tạo thư mục dự án tự động.');
@@ -235,7 +346,10 @@ export default function Demo() {
 
   // Action: Create and Download ZIP
   const handleCreateAndDownloadZip = async () => {
-    if (!generationResult?.targetDir) return;
+    // If client-side zip or deployed, download directly in browser
+    if (generationResult?.isClientZip || generationResult?.isClientDirectory) {
+      return handleDownloadZipDirectly();
+    }
     setZipLoading(true);
     try {
       const res = await fetch('/api/create-zip', {
@@ -246,14 +360,17 @@ export default function Demo() {
           projectName: generationResult.projectName,
         }),
       });
-      const data = await res.json();
-      if (data.downloadUrl) {
-        window.location.href = data.downloadUrl;
-      } else {
-        throw new Error(data.error || 'Không tạo được file zip');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.downloadUrl) {
+          window.location.href = data.downloadUrl;
+          return;
+        }
       }
+      // Fallback to browser zip
+      await handleDownloadZipDirectly();
     } catch (e) {
-      alert('Không thể tạo file zip: ' + e.message);
+      await handleDownloadZipDirectly();
     } finally {
       setZipLoading(false);
     }
@@ -401,32 +518,76 @@ export default function Demo() {
                   </div>
                 </div>
 
-                {/* 3 Instant Action Buttons */}
+                {/* Specific Guide for Client ZIP (when running on deployed web) */}
+                {generationResult.isClientZip && (
+                  <div className="p-4 rounded-2xl bg-blue-950/40 border border-blue-500/30 text-xs text-blue-200 space-y-2">
+                    <div className="font-bold flex items-center gap-2 text-blue-300">
+                      <span>💡 Hướng dẫn khởi chạy dự án từ file ZIP:</span>
+                    </div>
+                    <ol className="list-decimal list-inside space-y-1.5 text-slate-300 text-[11px] leading-relaxed">
+                      <li>Mở thư mục <strong>Downloads</strong> và giải nén file <strong className="text-white font-mono">{generationResult.downloadFileName || `${generationResult.projectName}.zip`}</strong>.</li>
+                      <li>Double-click vào file <strong className="text-amber-300 font-mono">chay-du-an.bat</strong> (hệ thống sẽ tự động cài đặt thư viện và mở website tại <code className="text-emerald-400 font-mono">http://localhost:3000</code>).</li>
+                      <li>Hoặc mở terminal tại thư mục vừa giải nén và chạy: <code className="text-emerald-400 font-mono">npm install && npm run dev</code>.</li>
+                    </ol>
+                  </div>
+                )}
+
+                {/* Specific Guide for Directory Picker */}
+                {generationResult.isClientDirectory && (
+                  <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-200 space-y-2">
+                    <div className="font-bold flex items-center gap-2 text-emerald-300">
+                      <span>✓ Đã ghi trực tiếp toàn bộ source code vào máy tính:</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      Bạn chỉ cần mở thư mục <strong className="text-white font-mono">{generationResult.targetDir}</strong>, double-click vào file <strong className="text-amber-300 font-mono">chay-du-an.bat</strong> để khởi chạy ngay!
+                    </p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
                 <div className="pt-2 flex flex-wrap items-center gap-3">
-                  <button
-                    onClick={handleOpenFolder}
-                    className="flex-1 min-w-[180px] px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white text-xs sm:text-sm font-bold border border-slate-700 transition-all flex items-center justify-center gap-2 shadow-md active:scale-95"
-                  >
-                    <Folder className="w-4 h-4 text-amber-400" />
-                    <span>Mở Thư Mục Trên Máy</span>
-                  </button>
+                  {/* If Local Dev Backend was used */}
+                  {!generationResult.isClientZip && !generationResult.isClientDirectory && (
+                    <>
+                      <button
+                        onClick={handleOpenFolder}
+                        className="flex-1 min-w-[180px] px-5 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white text-xs sm:text-sm font-bold border border-slate-700 transition-all flex items-center justify-center gap-2 shadow-md active:scale-95"
+                      >
+                        <Folder className="w-4 h-4 text-amber-400" />
+                        <span>Mở Thư Mục Trên Máy</span>
+                      </button>
 
-                  <button
-                    onClick={handleRunDev}
-                    className="flex-1 min-w-[200px] px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 active:scale-95"
-                  >
-                    <Play className="w-4 h-4 fill-slate-950" />
-                    <span>Chạy Dev Server (npm run dev)</span>
-                  </button>
+                      <button
+                        onClick={handleRunDev}
+                        className="flex-1 min-w-[200px] px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 active:scale-95"
+                      >
+                        <Play className="w-4 h-4 fill-slate-950" />
+                        <span>Chạy Dev Server (npm run dev)</span>
+                      </button>
+                    </>
+                  )}
 
+                  {/* Always available: Download ZIP */}
                   <button
-                    onClick={handleCreateAndDownloadZip}
+                    onClick={handleDownloadZipDirectly}
                     disabled={zipLoading}
                     className="flex-1 min-w-[180px] px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
                   >
                     {zipLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                    <span>{zipLoading ? 'Đang nén...' : 'Tải File .ZIP Trọn Bộ'}</span>
+                    <span>{zipLoading ? 'Đang nén file...' : 'Tải Lại File .ZIP Trọn Bộ'}</span>
                   </button>
+
+                  {/* Directory Picker button if supported */}
+                  {typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function' && (
+                    <button
+                      onClick={handleDirectoryPickerExport}
+                      disabled={isGenerating}
+                      className="flex-1 min-w-[180px] px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                    >
+                      <FolderCheck className="w-4 h-4 text-white" />
+                      <span>Chọn Thư Mục Ghi Lại</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Reset button */}
@@ -687,8 +848,8 @@ export default function Demo() {
                   </div>
                 )}
 
-                {/* Big Action Submit Button */}
-                <div className="pt-2">
+                {/* Big Action Submit Buttons */}
+                <div className="pt-2 space-y-3">
                   <button
                     onClick={handleAutoCreateProject}
                     disabled={isGenerating || canvasSections.length === 0 || (syncToExisting && !projectName.trim())}
@@ -710,8 +871,40 @@ export default function Demo() {
                       </>
                     )}
                   </button>
-                  <p className="text-center text-[11px] text-slate-400 mt-2">
-                    Không cần copy tay từng file! Toàn bộ file component sẽ được tạo và chia sẵn vào thư mục.
+
+                  {/* 2 Quick Standalone Client Export Options (No Server Needed) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={handleDownloadZipDirectly}
+                      disabled={isGenerating || zipLoading || canvasSections.length === 0}
+                      className="py-3 px-4 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-sm active:scale-95 disabled:opacity-50"
+                      title="Đóng gói và tải file .ZIP trực tiếp trong trình duyệt, không cần máy chủ backend"
+                    >
+                      {zipLoading ? <RefreshCw className="w-4 h-4 animate-spin text-blue-400" /> : <Download className="w-4 h-4 text-blue-400" />}
+                      <span>📦 Tải File .ZIP Trọn Bộ (Khuyên Dùng)</span>
+                    </button>
+
+                    {typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function' ? (
+                      <button
+                        type="button"
+                        onClick={handleDirectoryPickerExport}
+                        disabled={isGenerating || canvasSections.length === 0}
+                        className="py-3 px-4 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-sm active:scale-95 disabled:opacity-50"
+                        title="Chọn vị trí lưu trên máy tính của bạn và ghi trực tiếp toàn bộ source code vào máy"
+                      >
+                        <FolderCheck className="w-4 h-4 text-emerald-400" />
+                        <span>📁 Chọn Thư Mục & Ghi Thẳng Vào Máy</span>
+                      </button>
+                    ) : (
+                      <div className="py-3 px-4 rounded-xl bg-slate-900/50 border border-slate-800 text-slate-400 text-[11px] flex items-center justify-center text-center">
+                        Tự động đóng gói {canvasSections.length} components + file chay-du-an.bat
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-center text-[11px] text-slate-400">
+                    💡 <strong>Mẹo:</strong> Nếu bạn đang mở trang từ web deploy (Vercel/Cloud), hãy bấm <strong>"📦 Tải File .ZIP Trọn Bộ"</strong> để tải ngay mã nguồn về máy tính mà không lo lỗi máy chủ!
                   </p>
                 </div>
 

@@ -44,7 +44,8 @@ export default defineConfig({
       name: 'edu-landing-project-api',
       configureServer(server) {
         server.middlewares.use(async (req, res, next) => {
-          const url = req.url ? req.url.split('?')[0] : '';
+          const rawUrl = (req.originalUrl || req.url || '').split('?')[0];
+          const url = rawUrl.replace(/\/+$/, '');
 
           // 1. Static Assets handler
           if (url.startsWith('/assets/')) {
